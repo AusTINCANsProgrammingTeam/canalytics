@@ -1,0 +1,18 @@
+Timestamp,Name,Value
+13.268985,"NT:/LiveWindow/Ungrouped/navX-Sensor[4]/Value",-56.015953063964844
+13.287779,"/schedgen",636
+13.287835,"NT:/SmartDashboard/Robot Heading",-48.91008377075195
+13.287898,"NT:/SmartDashboard/Robot Location","Translation2d(X: 3.03, Y: 3.04)"
+13.288053,"NT:/SmartDashboard/Field/Robot",3.0277313710828655;3.042193044481142;-48.91008377075195
+13.288208,"/swerve/txout",-0
+13.288209,"/swerve/tyout",-0
+13.28821,"/swerve/rotout",0
+13.288432,"NT:/LiveWindow/Ungrouped/navX-Sensor[4]/Value",-48.91008377075195
+13.296202,"systemTime",2022-11-03 20:57:03.512749
+13.307737,"/schedgen",637
+13.307818,"NT:/SmartDashboard/Robot Heading",-42.06208038330078
+13.307893,"NT:/SmartDashboard/Robot Location","Translation2d(X: 3.03, Y: 3.05)"
+13.308078,"NT:/SmartDashboard/Field/Robot",3.0266811830597216;3.0528882167597904;-42.06208038330078
+13.308118,"/swerve/txout",-0
+13.308119,"/swerve/tyout",-0
+13.308119,"/swerve/rotout",0

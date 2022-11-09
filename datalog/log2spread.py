@@ -23,7 +23,7 @@ import pandas as pd
 import argparse
 import re
 
-# This makes sure that it will display everything if we print to check out work.
+# If we print out dataframes, the following options make sure all of the data gets printed out.
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 300)
@@ -44,14 +44,20 @@ args = parser.parse_args()
 df = pd.read_csv(args.filename,na_filter=False,)
 
 # Save all of the lines with name of schedgen in a new dataframe. 
-# In our code, this is called once per robot loop, in Robot.java right before calling CommandScheduler.run
+# In our code, this is logged once per robot loop, in Robot.java right before calling CommandScheduler.run
 # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.loc.html#pandas.DataFrame.loc
+# We will call each run of the Command Scheduler a "generation" in this script.
 generations = df.loc[df['Name'] == "/schedgen" ]
-# We need the start and end of the Schedule Generation, so we shift the next row's timestamp 
-# backwards into a new column called End.
+
+# We need the start and end of the Schedule Generation, 
+# so we shift the next row's timestamp backwards into a new column called End.
+# The lines should already be in sorted order.
 generations['End'] = generations['Timestamp'].shift(-1)
-# We should have one End having no value, we take the maximum value from our original dataframe and save that in End.
+
+# We should have one generation with an end that has no value.
+# Tthe maximum value from our original dataframe is the end for that generation.
 generations.loc[pd.isna(generations["End"]),"End"] = max(df["Timestamp"])
+
 # We also want a generation from the very earliest timestamp until the first schedgen row
 # this captures all data from when the robot turns on until the robot is enabled.
 first_gen = pd.DataFrame([[0,'/schedgen',0,min(generations['Timestamp'])]], 
@@ -66,8 +72,10 @@ def keep_names( df ):
 
 # input a dataframe, extract the series that matches with Name column,
 # return a series with True in any of the rows where the Name column matches a regular expression
-# "swerve|navX.*value|schedgen" means swerve anywhere in the string, or schedgen anywhere in the string.
-# or navX followed by any characters, followed by Value.
+# "swerve|navX.*value|schedgen" means:
+#    swerve anywhere in the string, 
+#    or schedgen anywhere in the string.
+#    or navX followed by any characters, followed by Value.
 def keep_names_re( df ):
  names = df.loc[:,'Name']
  reg = re.compile(r"swerve|navX.*Value|schedgen")
@@ -91,9 +99,11 @@ df["GenTimestamp"] = df.apply(
     axis = 1
 )
 
+# This can be used to check any of the steps
 # print(df.head(10))
+
 # This changes the data from Timestamp,Name,Value to more of a table, with each row having a timestamp
 # and the column headers being the individual Names that we kept.
-# If there are two logs in one schedgen, then we only keep the first one.
+# If there are two log entries in one generation, then we only keep the first one.
 data_table = df.pivot_table( index='GenTimestamp', columns = 'Name', values = 'Value', aggfunc = 'first' )
 data_table.to_csv("finished.csv")

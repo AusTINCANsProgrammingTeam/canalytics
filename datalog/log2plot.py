@@ -60,12 +60,12 @@ def keep_names_re( df ):
  return names.apply(lambda n: bool(reg.search(n)))
 
 # Only keep the Names that we want.
-df = df.loc[lambda x: keep_names_re(x)]
+df = df.loc[lambda x: keep_names(x)]
  
 # Need to convert the exponential form of the value to a numeric value
 # Need to make sure that all values are able to be made numeric.  Can't plot strings
 df['NumValue']=pd.to_numeric(df['Value'])
-print(df.tail(10))
+#print(df.tail(10))
 
 # Plot a scatterplot, with a different color and dot shape for each Name.
 fig = px.scatter(df, x="Timestamp", y="NumValue", color="Name", symbol="Name")

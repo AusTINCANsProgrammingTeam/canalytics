@@ -48,7 +48,7 @@ df = pd.read_csv(args.filename,na_filter=False,)
 # return a series with True in any of the rows with a Name column matching our list of specific names.
 def keep_names( df ):
  names = df.loc[:,'Name']
- return names.apply(lambda n: n in ['/swerve/FL/actual/angle','/swerve/FL/set/angle'])
+ return names.apply(lambda n: n in data_directorys)
 
 # input a dataframe, extract the series that matches with Name column,
 # return a series with True in any of the rows where the Name column matches a regular expression

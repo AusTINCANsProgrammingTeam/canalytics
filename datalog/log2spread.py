@@ -7,8 +7,6 @@ Output: A CSV, with a filtered list of log entries appropriate for inputing into
 Purpose:  This is an example, there are a ton of ideas that you can do to make this more useful:
 - Allow the filter to be changed on the command line.
   ( like the filename )
-- Read in multiple files, and do something reasonable with the output.
-  ( Add a column for each filename maybe? )
 - Choices about what to do if there are two log entries in one loop of Command Scheduler
   ( first value is not always the right choice: mean, max, quit with an error are other choices. )
 - Calculate loop periods, and warn if the loop with logs took more than 20ms.
@@ -52,10 +50,14 @@ def find_generation ( row ):
   t =  generations.loc[(generations['Timestamp'] < ts ) & (generations['End'] >= ts ),'Timestamp'].values[0]
   return t
 
+def compress_df(df):
+  # used to flatten dataframe to one log entry per cycle
+  pass
+
 def log_output(filename, data):
   if not os.path.exists('datalog/output_files'):
     os.mkdir('datalog/output_files')
-  data.to_csv(filename.split('.')[0] + '_output.csv')
+  data.to_csv('datalog/output_files/'+filename.split('.')[0] + '_output.csv')
 
 # If we print out dataframes, the following options make sure all of the data gets printed out.
 pd.set_option('display.max_rows', None)
@@ -80,7 +82,7 @@ file_paths = [file for file in os.listdir('datalog/input_files') if file.endswit
 df_list = []
 
 for path in file_paths:
-  df_list.append(pd.read_csv(path,na_filter=False,))
+  df_list.append(pd.read_csv('datalog/input_files/'+path,na_filter=False,))
 
 
 for i, df in enumerate(df_list):

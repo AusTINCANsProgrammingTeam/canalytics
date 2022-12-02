@@ -17,9 +17,11 @@ No Pie charts.  Seriously.  Don't do that.  It's not a good idea.  No, not even 
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.io as pio
 import re
 import argparse
 
+data_directorys = ['/swerve/FL/actual/angle','/swerve/FL/set/angle']
 
 # This makes sure that it will display everything if we print to check out work.
 pd.set_option('display.max_rows', None)
@@ -69,4 +71,4 @@ df['NumValue']=pd.to_numeric(df['Value'])
 
 # Plot a scatterplot, with a different color and dot shape for each Name.
 fig = px.scatter(df, x="Timestamp", y="NumValue", color="Name", symbol="Name")
-fig.show()
+fig.write_image("datalog/output_files/plot.png")

@@ -78,11 +78,11 @@ args = parser.parse_args()
 # Read in file as CSV. We need the first line to contain the header.
 # We need all lines to have a timestamp, and there to be lines with /schedgen that do not have the same timestamp.
 
-file_paths = [file for file in os.listdir('datalog/input_files') if file.endswith('.csv')]
+file_paths = [file for file in os.listdir(args.filename) if file.endswith('.csv')]
 df_list = []
 
 for path in file_paths:
-  df_list.append(pd.read_csv('datalog/input_files/'+path,na_filter=False,))
+  df_list.append(pd.read_csv(f'{args.filename}/'+path,na_filter=False,))
 
 
 for i, df in enumerate(df_list):
@@ -90,7 +90,7 @@ for i, df in enumerate(df_list):
   # In our code, this is logged once per robot loop, in Robot.java right before calling CommandScheduler.run
   # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.loc.html#pandas.DataFrame.loc
   # We will call each run of the Command Scheduler a "generation" in this script.
-  generations = df.loc[df['Name'] == "/schedgen" ]
+  generations = df.loc[df['Name'] == "/loopcount" ]
 
   # We need the start and end of the Schedule Generation, 
   # so we shift the next row's timestamp backwards into a new column called End.

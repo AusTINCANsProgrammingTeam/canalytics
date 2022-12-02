@@ -14,6 +14,7 @@ No Pie charts.  Seriously.  Don't do that.  It's not a good idea.  No, not even 
 
 """ 
 
+import os
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -22,6 +23,22 @@ import re
 import argparse
 
 data_directorys = ['/swerve/FL/actual/angle','/swerve/FL/set/angle']
+
+# input a dataframe, extract the series that matches with Name column,
+# return a series with True in any of the rows with a Name column matching our list of specific names.
+def keep_names( df ):
+ names = df.loc[:,'Name']
+ return names.apply(lambda n: n in data_directorys)
+
+# input a dataframe, extract the series that matches with Name column,
+# return a series with True in any of the rows where the Name column matches a regular expression
+# "swerve.*FL.*angle" means swerve anywhere in the string followed by any characters, followed by FL, followed
+#   by any characters, followed by angle
+def keep_names_re( df ):
+ names = df.loc[:,'Name']
+ reg = re.compile(r"swerve.*FL.*angle")
+ return names.apply(lambda n: bool(reg.search(n)))
+
 
 # This makes sure that it will display everything if we print to check out work.
 pd.set_option('display.max_rows', None)
@@ -41,34 +58,24 @@ args = parser.parse_args()
 
 # Read in file as CSV. We need the first line to contain the header.
 # We need all lines to have a timestamp
-df = pd.read_csv(args.filename,na_filter=False,)
+file_paths = [file for file in os.listdir(args.filename) if file.endswith('.csv')]
+df_list = []
 
-# remove all but the lines that we are plotting.
-# This will make programming more straightforward as well as processing quicker
+for path in file_paths:
+    df_list.append(pd.read_csv(f'{args.filename}/'+path,na_filter=False,))
 
-# input a dataframe, extract the series that matches with Name column,
-# return a series with True in any of the rows with a Name column matching our list of specific names.
-def keep_names( df ):
- names = df.loc[:,'Name']
- return names.apply(lambda n: n in data_directorys)
+for i, df in enumerate(df_list):
+    # Only keep the Names that we want.
+    df = df.loc[lambda x: keep_names(x)]
+    
+    # Need to convert the exponential form of the value to a numeric value
+    # Need to make sure that all values are able to be made numeric.  Can't plot strings
+    df['NumValue']=pd.to_numeric(df['Value'])
+    #print(df.tail(10))
 
-# input a dataframe, extract the series that matches with Name column,
-# return a series with True in any of the rows where the Name column matches a regular expression
-# "swerve.*FL.*angle" means swerve anywhere in the string followed by any characters, followed by FL, followed
-#   by any characters, followed by angle
-def keep_names_re( df ):
- names = df.loc[:,'Name']
- reg = re.compile(r"swerve.*FL.*angle")
- return names.apply(lambda n: bool(reg.search(n)))
-
-# Only keep the Names that we want.
-df = df.loc[lambda x: keep_names(x)]
- 
-# Need to convert the exponential form of the value to a numeric value
-# Need to make sure that all values are able to be made numeric.  Can't plot strings
-df['NumValue']=pd.to_numeric(df['Value'])
-#print(df.tail(10))
-
-# Plot a scatterplot, with a different color and dot shape for each Name.
-fig = px.scatter(df, x="Timestamp", y="NumValue", color="Name", symbol="Name")
-fig.write_image("datalog/output_files/plot.png")
+    # Plot and write scatterplot to file
+    if not os.path.exists('datalog/output_files'):
+        os.mkdir('datalog/output_files')
+        
+    fig = px.scatter(df, x="Timestamp", y="NumValue", color="Name", symbol="Name")
+    fig.write_image(f"datalog/output_files/{file_paths[i].split('.')[0]}.png")

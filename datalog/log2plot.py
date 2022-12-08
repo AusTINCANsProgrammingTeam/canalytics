@@ -22,13 +22,13 @@ import plotly.io as pio
 import re
 import argparse
 
-data_directorys = ['/swerve/FL/actual/angle','/swerve/FL/set/angle']
+data_directories = ['/swerve/txout','/swerve/tyout']
 
 # input a dataframe, extract the series that matches with Name column,
 # return a series with True in any of the rows with a Name column matching our list of specific names.
 def keep_names( df ):
  names = df.loc[:,'Name']
- return names.apply(lambda n: n in data_directorys)
+ return names.apply(lambda n: n in data_directories)
 
 # input a dataframe, extract the series that matches with Name column,
 # return a series with True in any of the rows where the Name column matches a regular expression
@@ -62,7 +62,7 @@ file_paths = [file for file in os.listdir(args.filename) if file.endswith('.csv'
 df_list = []
 
 for path in file_paths:
-    df_list.append(pd.read_csv(f'{args.filename}/'+path,na_filter=False,))
+    df_list.append(pd.read_csv(f'{args.filename}/'+path))
 
 for i, df in enumerate(df_list):
     # Only keep the Names that we want.
@@ -76,6 +76,9 @@ for i, df in enumerate(df_list):
     # Plot and write scatterplot to file
     if not os.path.exists('datalog/output_files'):
         os.mkdir('datalog/output_files')
-        
+
+    print(df.tail(10))
     fig = px.scatter(df, x="Timestamp", y="NumValue", color="Name", symbol="Name")
-    fig.write_image(f"datalog/output_files/{file_paths[i].split('.')[0]}.png")
+    fig.write_html(f"datalog/output_files/{file_paths[i].split('.')[0]}.html")
+
+    #fig.write_image(f"datalog/output_files/{file_paths[i].split('.')[0]}.png")

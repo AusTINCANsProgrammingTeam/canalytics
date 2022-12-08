@@ -77,8 +77,7 @@ for i, df in enumerate(df_list):
     if not os.path.exists('datalog/output_files'):
         os.mkdir('datalog/output_files')
 
-    print(df.tail(10))
     fig = px.scatter(df, x="Timestamp", y="NumValue", color="Name", symbol="Name")
-    fig.write_html(f"datalog/output_files/{file_paths[i].split('.')[0]}.html")
+    fig.write_html(f"datalog/output_files/{file_paths[i].split('.')[0]}_output.html")
 
     #fig.write_image(f"datalog/output_files/{file_paths[i].split('.')[0]}.png")

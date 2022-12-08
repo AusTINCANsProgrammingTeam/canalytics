@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 import argparse
 import re
+import plotly.express as px
 
 data_directorys = ['/swerve/FL/actual/angle','/swerve/FL/set/angle']
 
@@ -123,4 +124,5 @@ for i, df in enumerate(df_list):
   # and the column headers being the individual Names that we kept.
   # If there are two log entries in one generation, then we only keep the first one.
   data_table = df.pivot_table( index='GenTimestamp', columns = 'Name', values = 'Value', aggfunc = 'first' )
+
   log_output(file_paths[i], data_table)

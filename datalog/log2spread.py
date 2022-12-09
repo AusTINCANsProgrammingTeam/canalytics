@@ -23,7 +23,7 @@ import argparse
 import re
 import plotly.express as px
 
-data_directorys = ['/swerve/FL/actual/angle','/swerve/FL/set/angle']
+data_directories = ['/swerve/txout','/swerve/tyout']
 
 # input a dataframe, extract the series that matches with Name column,
 # return a series with True in any of the rows with a Name column matching our list of specific names.
@@ -91,7 +91,7 @@ for i, df in enumerate(df_list):
   # In our code, this is logged once per robot loop, in Robot.java right before calling CommandScheduler.run
   # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.loc.html#pandas.DataFrame.loc
   # We will call each run of the Command Scheduler a "generation" in this script.
-  generations = df.loc[df['Name'] == "/loopcount" ]
+  generations = df.loc[df['Name'] == "/robot/loopCount" ]
 
   # We need the start and end of the Schedule Generation, 
   # so we shift the next row's timestamp backwards into a new column called End.
@@ -104,7 +104,7 @@ for i, df in enumerate(df_list):
 
   # We also want a generation from the very earliest timestamp until the first schedgen row
   # this captures all data from when the robot turns on until the robot is enabled.
-  first_gen = pd.DataFrame([[0,'/schedgen',0,min(generations['Timestamp'])]], 
+  first_gen = pd.DataFrame([[0,'/robot/loopCount',0,min(generations['Timestamp'])]], 
                           columns = ['Timestamp','Name','Value','End'])
   generations = pd.concat([first_gen,generations], ignore_index = True )
   

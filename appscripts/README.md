@@ -16,7 +16,14 @@ Push the plus for "Add a File"
 Name the new file "canalytics.gs"
 Copy and paste the contents of the file from github into the AppScript file
 Click on the antiquated floppy icon to save
-Reload the spreadsheet, and look for the "ausTIN CANalytics" menu
+Reload the spreadsheet.
+Look for the "ausTIN CANalytics" menu
+The first time running any of the scripts, there will be a popup "Authorization Required"
+Click on Continue, choose your account.
+Then there will be a warning saying that the script is unsafe.  
+- The script does not collect or access any data from your google account besides what is on the new sheet.
+- The script however has not been verified with Google. 
+- You will need to click on Advanced, and click on "Go to..."
 
 # To operate
 - Get a "The Blue Alliance" API Key here:  https://www.thebluealliance.com/account

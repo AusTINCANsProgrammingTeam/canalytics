@@ -10,6 +10,17 @@ var documentProperties = PropertiesService.getDocumentProperties();
 var userProperties = PropertiesService.getUserProperties();
 // ui allows us to send messages and get responses
 
+// https://stackoverflow.com/questions/7033639/split-large-string-in-n-size-chunks-in-javascript
+function chunkSubstr(str, size) {
+  const numChunks = Math.ceil(str.length / size)
+  const chunks = new Array(numChunks)
+
+  for (let i = 0, o = 0; i < numChunks; ++i, o += size) {
+    chunks[i] = str.substr(o, size)
+  }
+
+  return chunks
+}
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
@@ -69,14 +80,15 @@ function getEventKey() {
 
 function initEvent() {
   readEventKey();
-  eventTeams();
-  eventQualMatches(); // Likely this wont have any data for events that have not started, but try to load anyway
+  eventTeams(true);
+  getOPRS(true);
+  eventQualMatches(true); // Likely this wont have any data for events that have not started, but try to load anyway
 
 }
 
-function eventTeams() {
+function eventTeams(ignoreCache = false ) {
   // With help from: https://stackoverflow.com/questions/64884530/populating-and-formatting-json-into-a-google-sheet
-  const header = ["key","team_number","nickname","name"]
+  const header = ["key","team_number","nickname","oprs","ccwms","dprs","name"] //  oprs, ccwms, dprs will be added later.
 
   var sheet = SpreadsheetApp.getActive().getSheetByName('Teams')
   if( sheet == null)
@@ -90,17 +102,19 @@ function eventTeams() {
     throw new Error("Undefined Event Key")
   }
 
-  jsonResult = TBAQuery('event/' + e + '/teams/simple')
+  jsonResult = TBAQuery('event/' + e + '/teams/simple',ignoreCache)
 
   const values = Object.entries(jsonResult).map(([k, v]) => {
     return header.map(h => v[h]);
   });
   values.sort((a, b) => { return Number(a[1]) - Number(b[1])} ); // Position from header above.
   values.unshift(header);  // When you want to add the header, please use this.
+  sheet.clear();
   sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
+
 }
 
-function eventQualMatches() {
+function eventQualMatches(ignoreCache = false) {
   const initHeader = ["key","comp_level","match_number","predicted_time","actual_time","post_result_time","red1","red2","red3","red_score","blue1","blue2","blue3","blue_score"]
   var sheet = SpreadsheetApp.getActive().getSheetByName('Qualification')
   if ( sheet == null )
@@ -113,7 +127,7 @@ function eventQualMatches() {
     throw new Error("Undefined Event Key")
   }
 
-  var jsonResult = TBAQuery('event/' + e + '/matches')
+  var jsonResult = TBAQuery('event/' + e + '/matches',ignoreCache)
 
   var timeZone = Session.getScriptTimeZone();
   var header = initHeader.concat(scoreBreakdownHeader());
@@ -167,7 +181,8 @@ function qualResults() {
         //TODO: If you see this exception thrown, consider just calling eventQualMatches in order to refetch all data
         throw new Error("Fail updating Qualification.  Match key was null on row:" + i)
       }else{
-        var jsonMatch = TBAQuery("match/" + matchKey )
+        // This is an update function, we shouldnt ignore cache whenupdating, just when resetting from the beginning.
+        var jsonMatch = TBAQuery("match/" + matchKey , false )
         Logger.log(jsonMatch)
         data[i][PREDICTED_TIME] = new Date(jsonMatch.predicted_time*1000).toLocaleString('en-US', {timeZone: timeZone} )
         data[i][ACTUAL_TIME] = new Date(jsonMatch.actual_time*1000).toLocaleString('en-US', {timeZone: timeZone} )
@@ -191,14 +206,41 @@ function qualResults() {
   // Must remember to replace the header!!
   data.unshift(header)
   sheet.getDataRange().setValues(data);
-  // TODO: Update OPRs?
+  getOPRS(ignoreCache)
+
 
 }
 
-function getOPRS() {
+function getOPRS(ignoreCache) {
   // TODO:  Get a new OPRS with timestamp everytime it changes?  So we can see the change of OPRS over time?
   // WOuld need to check the cache, I guess?
-
+  //
+  const eventKey = getEventKey()
+  if ( eventKey == null ){
+    throw new Error("Fail updating OPRS, Event Key was null")
+  }
+  var sheet = SpreadsheetApp.getActive().getSheetByName('Teams')
+  if ( sheet == null )
+  {
+    // Something went wrong, create the sheet with a call to another routine.
+    eventTeams(ignoreCache)
+    sheet = SpreadsheetApp.getActive().getSheetByName('Teams')
+  }
+  var jsonOPR = TBAQuery("event/" + eventKey + "/oprs",ignoreCache)
+  Logger.log(jsonOPR)
+  if ( jsonOPR != null ){ // This could mean no OPR scores.
+    var data = sheet.getDataRange().getValues();
+    // First row is the header
+    var header = data.shift()
+    for (var i = 0; i < data.length; i++) {
+      var teamKey = data[i][header.indexOf("key")]
+      data[i][header.indexOf("oprs")] = jsonOPR.oprs[teamKey]
+      data[i][header.indexOf("ccwms")] = jsonOPR.ccwms[teamKey]
+      data[i][header.indexOf('dprs')] = jsonOPR.dprs[teamKey]
+    }
+    data.unshift(header)
+    sheet.getDataRange().setValues(data);
+  } // end of null jsonOPR
 }
 
 function eventFinalMatches() {
@@ -247,7 +289,7 @@ function scoreBreakdown(match){
  * @return Parsed json of the result including a cache time and Etag used for reducing data transfer.
  * @customfunction
  */
-function TBAQuery(path) {
+function TBAQuery(path, ignoreCache) {
   var url = 'https://www.thebluealliance.com/api/v3/'+path
   const cacheDocument = CacheService.getDocumentCache();
   var headers = {}
@@ -258,9 +300,30 @@ function TBAQuery(path) {
     headers['X-TBA-Auth-Key'] = getAPIKey_()
   }
   
-  var cacheStats = JSON.parse(cacheDocument.get("cacheStats" + url ))
-  var cacheResult = cacheDocument.get(url)
-
+  if ( ignoreCache ){
+    Logger.log("Ignoring cache for " + path )
+    var cacheStats = null
+    var cacheResult = null
+  }else{
+    try{
+      var cacheStats = JSON.parse(cacheDocument.get("cacheStats:" + url ))
+      var tempResult = ""
+      Logger.log(cacheStats)
+      for ( let i = 0; i< cacheStats.numChunks; i++){
+        var tempCache = cacheDocument.get("chunk:" + i + ":" + url)
+        if ( tempCache == null ){
+          throw new Error("Some missing pieces of cache chunks") 
+        }
+        tempResult = tempResult.concat(tempCache)
+      }
+      Logger.log("Cache get length: " + tempResult.length)
+      var cacheResult = JSON.parse(tempResult)
+    }catch(err) {
+      var cacheStats = null
+      var cacheResult = null
+      Logger.log(err.message)
+    }
+  }
   if ( cacheStats != null && cacheResult != null ){
     // Data is cached.  Let's check to see if it is still good
     // Cache Service can decide to arbitrarily remove cache entries, so check both.
@@ -287,7 +350,6 @@ function TBAQuery(path) {
     // Return the stale cache.
     Logger.log(result.getHeaders())
     Logger.log("nothing changed returned from tba, returning stale cache")
-    Logger.log(cacheResult)
     return cacheResult
   }else if ( result.getResponseCode() != 200 ){
     throw new Error("Failed TBA call.  URL: " + url + " Response code: " + result.getResponseCode() )
@@ -303,8 +365,17 @@ function TBAQuery(path) {
   cacheStats['cacheExpireMs'] = new Date().getTime() + maxAge*1000,
   cacheStats['etag'] = resultHeaders['ETag']
   
-  cacheDocument.put("cacheStats" + url, JSON.stringify(cacheStats), 21600)
-  cacheDocument.put(url, jsonResult, 21600)
+  // A full event takes ~150k for all of the qualifications and finals.
+  // Need to optionally chunk up the result into less than 100KB chunks
+  chunks = chunkSubstr(JSON.stringify(jsonResult),100000)
+  for (let i = 0; i < chunks.length; i++) {
+    cacheDocument.put("chunk:" + i + ":" + url,chunks[i])
+  }
+  // There is not a guarantee that all chunks will remain in cache, so make sure to 
+  // Save the number of chunks in our stats object.
+  cacheStats['numChunks'] = chunks.length
+
+  cacheDocument.put("cacheStats:" + url, JSON.stringify(cacheStats), 21600)
 
   return jsonResult
 }

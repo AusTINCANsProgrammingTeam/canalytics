@@ -13,8 +13,9 @@
  */
 
 // TODO: Freeze first row in each sheet
-// TODO:  Moar comments
 // TODO: Auto resize columns
+// TODO: Standardize names for matchValues, matchData, etc.
+// TODO: combineData(); and loadOPRS.  Where should they go?
 
 /** 
  * The following are general purpose routines and constants 
@@ -24,7 +25,6 @@
 //Properties service holds the TBA key in a user specific property service, 
 // And the Event key in a document specific property store.
 var documentProperties = PropertiesService.getDocumentProperties();
-var userProperties = PropertiesService.getUserProperties();
 
 const Match = {
   QUALIFICATIONS: 1,
@@ -44,7 +44,8 @@ const Sheet = {
   TEAMS : "Teams",
   QUALIFICATIONS : "Qualifications",
   FINALS : 'Finals',
-  SCOUTING : 'Scouting'
+  SCOUTING : 'Scouting',
+  TEAM_SUMMARY : "Team Summary"
 }
 
 // https://stackoverflow.com/questions/7033639/split-large-string-in-n-size-chunks-in-javascript
@@ -67,13 +68,12 @@ function onOpen() {
   ui.createMenu('ausTIN CANalytics')
       .addItem('TBA API Key','readAPIKey')
       .addItem('Event Key and Initialize', 'initEvent' )
-      .addItem('Set Team Key','readTeamKey')
       .addItem('Reset API Key','resetAPIKey')
       .addSeparator()
-      .addItem('Init Teams List','eventTeams')
-      .addItem('Init Qual. Matches','eventQualMatches')
-      .addItem('Update Match Results','qualResults')
-      .addItem('Load Finals Matches','eventFinalMatches')
+      .addItem('Load Teams List','loadEventTeams')
+      .addItem('Load Qual. Matches','loadQualMatches')
+      .addItem('Update Qual. Results','updateQualResults')
+      .addItem('Load Finals Matches','loadFinalMatches')
       .addToUi();
 }
 
@@ -81,31 +81,19 @@ function readAPIKey() {
   // Can only be called from a menu
   const ui = SpreadsheetApp.getUi();
   var scriptValue = ui.prompt('Please provide your TBA API key.' , ui.ButtonSet.OK);
-  userProperties.setProperty('TBA_API_KEY', scriptValue.getResponseText());
+  documentProperties.setProperty('TBA_API_KEY', scriptValue.getResponseText());
 }
 
 // This is a private function, and will not run in a cell.
 function getAPIKey_() {
-  var key = userProperties.getProperty(Prop.TBA_API_KEY)
+  var key = documentProperties.getProperty(Prop.TBA_API_KEY)
   if (key) {return key} else { return null }
 }
 
 // This should never need to be used.
 // Including it in case someone wants to ensure their API KEY is entirely removed.
 function resetAPIKey(){
-  userProperties.deleteProperty(Prop.TBA_API_KEY)
-}
-
-function readTeamKey() {
-  // Can only be called from a menu
-  const ui = SpreadsheetApp.getUi();
-  var scriptValue = ui.prompt('Please provide your Team key. ( only numeric part )' , ui.ButtonSet.OK);
-  userProperties.setProperty(Prop.TEAM_KEY, scriptValue.getResponseText());
-}
-
-function getTeamKey() {
-  var key = userProperties.getProperty(Prop.TEAM_KEY)
-  if (key) {return key} else { return null }
+  documentProperties.deleteProperty(Prop.TBA_API_KEY)
 }
 
 function readEventKey() {
@@ -153,9 +141,44 @@ function scoreBreakdown(match){
   match.blue3_endgame = sbd.blue.endgameRobot3
 }
 
-function combineTeamData(teamKey){
-  // TODO: Given a team, read all information from Team, and QUalification sheets and Scouting and combine.
-  // return it in an array?
+function scoreBreakdownSummaryHeader(){
+  return ["taxi_success","highest_climb"]
+}
+
+function scoreBreakdownSummary(matchValues,summaryData){
+  /**
+   * matchValues contains the entire sheet from Qualification reorganized
+   * as an Object instead of an array.  The key is the match key.
+   * 
+   * summaryData is the array of data that we are 
+   * TODO:  These names could be finetuned.  Make sure data always equals array, or something.
+   */
+  Object.keys(summaryData).forEach( k => {
+      summaryData[k]['taxi']=0;
+      summaryData[k]['highest_climb']=0;
+      summaryData[k]['total_climb_score']=0;
+   })
+   Object.keys(matchValues).forEach( k => {
+     if ( matchValues[k]['post_result_time'] != ""){
+       if ( matchValues[k]['red1_taxi'] == "Yes" ){ summaryData[matchValues[k]['red1']]['taxi'] +=1 }
+       if ( matchValues[k]['red2_taxi'] == "Yes" ){ summaryData[matchValues[k]['red2']]['taxi'] +=1 }
+       if ( matchValues[k]['red3_taxi'] == "Yes" ){ summaryData[matchValues[k]['red3']]['taxi'] +=1 }
+       if ( matchValues[k]['blue1_taxi'] == "Yes" ){ summaryData[matchValues[k]['blue1']]['taxi'] +=1 }
+       if ( matchValues[k]['blue2_taxi'] == "Yes" ){ summaryData[matchValues[k]['blue2']]['taxi'] +=1 }
+       if ( matchValues[k]['blue3_taxi'] == "Yes" ){ summaryData[matchValues[k]['blue3']]['taxi'] +=1 }
+     }
+   })
+   Object.keys(summaryData).forEach( k => { summaryData[k]['taxi_success'] = summaryData[k]['taxi'] + "/" + summaryData[k]['matches_total'] + " success"} )
+}
+
+function scoutingSummaryHeader(){
+  return []
+}
+
+function scoutingSummary(summary){
+  // Read in scouting sheet, 
+  // do calculations on it to return a summary.
+  return summary
 }
 
 /** 
@@ -163,9 +186,156 @@ function combineTeamData(teamKey){
  * 
  */
 
-// TODO: Any six teams match prediction. ( likely win by OPR, likely win by scouting, auton points, taxi points.)
-// TODO: Match prediction.  Match prediction for next match of the set team
-// TODO: Team summary.  All data from a particular team.  Wins, losses, scouting information.
+function getNextMatch(teamKey){
+  if ( teamKey == null ){
+    throw new Error("No team key set, or as parameter")
+  }
+  var sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.QUALIFICATIONS)
+  if ( sheet == null )
+  {
+    loadQualMatches(false)
+    sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.QUALIFICATIONS)
+  }  
+  var data = sheet.getDataRange().getValues();
+  // First row is the header
+  var header = data.shift()
+  const Index =  {
+    MATCH_KEY : header.indexOf('key'),
+    ACTUAL_TIME : header.indexOf('actual_time')
+  }
+  var nextMatchKey = null
+  for (var i = 0; i < data.length; i++) {
+    if ( data[i][Index.ACTUAL_TIME] === "" ){
+      // This match has not occurred yet, check and see if the team is in the match.
+      if ( data[i].join().match(teamKey) != null ){
+        // Save the match key, and exit the loop
+        nextMatchKey = data[i][Index.MATCH_KEY]
+        break
+      }
+    }
+  } // end of for data
+  return nextMatchKey
+}
+
+function getRedAlliance(matchKey){
+  /** Leaving these here.  However, a query is much much quicker in the sheet.
+   * 
+   * =query(Qualifications!$2:$1000,"select H where A='"&D1&"'")
+   * Only downside is that anytime the columns change, the query breaks.
+   * 
+   */
+
+  if ( matchKey == null ){
+    throw new Error("No match key as parameter for getRedAlliance")
+  }
+  var sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.QUALIFICATIONS)
+  if ( sheet == null )
+  {
+    throw new Error ( "Qual Sheet is missing in getRedAlliance")
+  } 
+  var data = sheet.getDataRange().getValues()
+  var header = data.shift()
+  matchRow = data.filter(r => r[header.indexOf('key')] == matchKey)
+  if ( matchRow.length != 1 ){
+    throw new Error("Not the right number of rows for a match in redAlliance")
+  }
+  return [matchRow[0][header.indexOf('red1')],matchRow[0][header.indexOf('red2')],matchRow[0][header.indexOf('red3')]]
+}
+
+function getBlueAlliance(matchKey){
+  /** Leaving these here.  However, a query is much much quicker in the sheet.
+   * 
+   * =query(Qualifications!$2:$1000,"select H where A='"&D1&"'")
+   * 
+   * 
+   */
+  if ( matchKey == null ){
+    throw new Error("No match key as parameter for getBlueAlliance")
+  }
+  var sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.QUALIFICATIONS)
+  if ( sheet == null )
+  {
+    throw new Error ( "Qual Sheet is missing in getBlueAlliance")
+  } 
+  var data = sheet.getDataRange().getValues()
+  var header = data.shift()
+  matchRow = data.filter(r => r[header.indexOf('key')] == matchKey)
+  if ( matchRow.length != 1 ){
+    throw new Error("Not the right number of rows for a match in getBlueAlliance")
+  }
+  return [matchRow[0][header.indexOf('blue1')],matchRow[0][header.indexOf('blue2')],matchRow[0][header.indexOf('blue3')]]
+}
+
+function combineData(){
+  // Combine all TBA, Scoring breakdown, and Scouting data into one large sheet by team.
+  // This sheet can then be used as a source for vlookups and query's for results
+  var sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.TEAM_SUMMARY)
+  if ( sheet == null )
+  {
+    SpreadsheetApp.getActive().insertSheet(Sheet.TEAM_SUMMARY)
+    sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.TEAM_SUMMARY)
+  }  
+  var header = ["team_number","oprs","matches_total","matches_won"]
+  header = header.concat(scoreBreakdownSummaryHeader())
+  header = header.concat(scoutingSummaryHeader())
+
+  var teamSheet = SpreadsheetApp.getActive().getSheetByName(Sheet.TEAMS)
+  var teamData = teamSheet.getDataRange().getValues();
+  // First row is the header
+  var teamHeader = teamData.shift()
+  // Translate the data into an object.  Easier to append information
+  const TeamIndex =  {
+    TEAM_NUMBER : teamHeader.indexOf('team_number'),
+    NICKNAME : teamHeader.indexOf('nickname'),
+    OPRS : teamHeader.indexOf('oprs')
+  }
+  var data = {} 
+  for (var i = 0; i < teamData.length; i++) {
+    data[teamData[i][TeamIndex.TEAM_NUMBER]] = {}
+    data[teamData[i][TeamIndex.TEAM_NUMBER]]['oprs']=teamData[i][TeamIndex.OPRS]
+    data[teamData[i][TeamIndex.TEAM_NUMBER]]['nickname']=teamData[i][TeamIndex.NICKNAME]
+    data[teamData[i][TeamIndex.TEAM_NUMBER]]['matches_won']=0
+    data[teamData[i][TeamIndex.TEAM_NUMBER]]['matches_total']=0    
+  }
+  var matchSheet = SpreadsheetApp.getActive().getSheetByName(Sheet.QUALIFICATIONS)
+  var matchData = matchSheet.getDataRange().getValues()
+  var matchHeader = matchData.shift()
+  var matchValues = {}
+  matchData.forEach(r => { 
+    const localKey = r[matchHeader.indexOf('key')]
+    matchValues[localKey] = {};
+    matchHeader.forEach( h => matchValues[localKey][h]=r[matchHeader.indexOf(h)] )
+  })  
+  Object.entries(matchValues).forEach( ([k,r]) => {
+    if ( r.post_result_time != "" ){
+      data[r.red1]['matches_total'] +=1;
+      data[r.red2]['matches_total'] +=1;
+      data[r.red3]['matches_total'] +=1;
+      data[r.blue1]['matches_total'] +=1;
+      data[r.blue2]['matches_total'] +=1;
+      data[r.blue3]['matches_total'] +=1;
+      if ( r.red_score > r.blue_score ){
+        data[r.red1]['matches_won'] += 1;
+        data[r.red2]['matches_won'] += 1;
+        data[r.red3]['matches_won'] += 1;
+      } else if ( r.red_score < r.blue_score ) {
+        data[r.blue1]['matches_won'] += 1;
+        data[r.blue2]['matches_won'] += 1;
+        data[r.blue3]['matches_won'] += 1;
+      };
+    };
+  }) // end of matchValues.forEach
+  scoreBreakdownSummary(matchValues,data)
+  // TODO: scouting summary function call.
+  const values = Object.entries(data).map(([k, v]) => {
+    v["team_number"]=k;
+    return header.map(h => v[h]);
+  });
+  values.sort((a, b) => { return Number(a[0]) - Number(b[0])} ); // Position from header above.
+  values.unshift(header);  // Add the header back to the data at the first row
+  sheet.clear();
+  sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
+}
 
 /**
  *  Function to gather external information from TBA through REST API
@@ -282,46 +452,13 @@ function initEvent() {
   // Not only should this be used to initialize the sheets when examining a new event.
   // It can also be used to ignore and rest the cache for all sheets.
   readEventKey();
-  eventTeams(true);
-  getOPRS(true);
-  eventQualMatches(true); 
+  loadEventTeams(true);
+  loadOPRS(true);
+  loadQualMatches(true); 
+  combineData();
 }
 
-function getNextMatch(teamKey){
-  if ( teamKey == null ){
-    teamKey = getTeamKey()
-  }
-  if ( teamKey == null ){
-    throw new Error("No team key set, or as parameter")
-  }
-  var sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.QUALIFICATIONS)
-  if ( sheet == null )
-  {
-    eventQualMatches(false)
-    sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.QUALIFICATIONS)
-  }  
-  var data = sheet.getDataRange().getValues();
-  // First row is the header
-  var header = data.shift()
-  const Index =  {
-    MATCH_KEY : header.indexOf('key'),
-    ACTUAL_TIME : header.indexOf('actual_time')
-  }
-  var nextMatchKey = null
-  for (var i = 0; i < data.length; i++) {
-    if ( data[i][Index.ACTUAL_TIME] === "" ){
-      // This match has not occurred yet, check and see if the team is in the match.
-      if ( data[i].join().match(teamKey) != null ){
-        // Save the match key, and exit the loop
-        nextMatchKey = data[i][Index.MATCH_KEY]
-        break
-      }
-    }
-  } // end of for data
-  return nextMatchKey
-}
-
-function eventTeams(ignoreCache = false ) {
+function loadEventTeams(ignoreCache = false ) {
   // With help from: https://stackoverflow.com/questions/64884530/populating-and-formatting-json-into-a-google-sheet
   const header = ["key","team_number","nickname","oprs","ccwms","dprs","name"] //  oprs, ccwms, dprs will be added later.
   var sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.TEAMS)
@@ -348,15 +485,16 @@ function eventTeams(ignoreCache = false ) {
   sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
 }
 
-function eventQualMatches(ignoreCache = false){
-  eventMatches_(ignoreCache,Match.QUALIFICATIONS)
+function loadQualMatches(ignoreCache = false){
+  loadMatches_(ignoreCache,Match.QUALIFICATIONS)
+  combineData()
 }
 
-function eventFinalMatches(ignoreCache = false) {
-  eventMatches_(ignoreCache,Match.FINALS)
+function loadFinalMatches(ignoreCache = false) {
+  loadMatches_(ignoreCache,Match.FINALS)
 }
 
-function eventMatches_(ignoreCache = false,matchType) {
+function loadMatches_(ignoreCache = false,matchType) {
   const initHeader = ["key","comp_level","match_number","predicted_time","sortable_predicted_time","actual_time","post_result_time","red1","red2","red3","blue1","blue2","blue3","red_score","blue_score"]
   var sheetName
   if ( matchType == Match.QUALIFICATIONS ){
@@ -364,7 +502,7 @@ function eventMatches_(ignoreCache = false,matchType) {
   }else if ( matchType == Match.FINALS){
     sheetName = Sheet.FINALS
   }else{
-    throw new Exception("Internal error: matchType not set in eventMatches")
+    throw new Error("Internal error: matchType not set in loadMatches")
   }
   var sheet = SpreadsheetApp.getActive().getSheetByName(sheetName)
   if ( sheet == null )
@@ -380,13 +518,13 @@ function eventMatches_(ignoreCache = false,matchType) {
   var timeZone = Session.getScriptTimeZone();
   var header = initHeader.concat(scoreBreakdownHeader());
   const values = Object.entries(jsonResult).filter(([k, v]) => { return matchType == Match.QUALIFICATIONS ? v.comp_level === "qm" : v.comp_level != "qm" }).map(([k, v]) => {
-    v.red1 = v.alliances.red.team_keys[0];
-    v.red2 = v.alliances.red.team_keys[1];
-    v.red3 = v.alliances.red.team_keys[2];
+    v.red1 = v.alliances.red.team_keys[0].replace(/^frc/, '');
+    v.red2 = v.alliances.red.team_keys[1].replace(/^frc/, '');
+    v.red3 = v.alliances.red.team_keys[2].replace(/^frc/, '');
     v.red_score = v.alliances.red.score;
-    v.blue1 = v.alliances.red.team_keys[0];
-    v.blue2 = v.alliances.red.team_keys[1];
-    v.blue3 = v.alliances.red.team_keys[2];
+    v.blue1 = v.alliances.blue.team_keys[0].replace(/^frc/, '');
+    v.blue2 = v.alliances.blue.team_keys[1].replace(/^frc/, '');
+    v.blue3 = v.alliances.blue.team_keys[2].replace(/^frc/, '');
     v.blue_score = v.alliances.blue.score;
     v.sortable_predicted_time = v.predicted_time;
     v.predicted_time = new Date(v.predicted_time*1000).toLocaleString('en-US', {timeZone: timeZone} );
@@ -399,15 +537,16 @@ function eventMatches_(ignoreCache = false,matchType) {
   values.sort((a, b) => { return Number(a[4]) - Number(b[4])} ); // Position from header above.
   values.unshift(header);  // Add the header to the array
   sheet.clear(); // Remove any old data. Otherwise, you may have data at the end that doesnt belong.
-  sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
+  sheet.getRange(1, 1, values.length, values[0].length).setValues(values);  
 }
 
-function qualResults() {
+function updateQualResults() {
   var sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.QUALIFICATIONS);
-  // If the sheet doesn't exist, then let's just call eventQualMatches, which will create and fill the entire sheet
+  // If the sheet doesn't exist, then let's just call loadQualMatches, which will create and fill the entire sheet
   if ( sheet === null ) {
-    eventQualMatches()
-    getOPRS(ignoreCache)
+    loadQualMatches()
+    loadOPRS()
+    combineData()
     return
   }
   const timeZone = Session.getScriptTimeZone();
@@ -428,7 +567,6 @@ function qualResults() {
       matchKey = data[i][Index.MATCH_KEY]
       if ( matchKey == null ){
         //This is unexpected.  Throw an exception.  
-        //TODO: If you see this exception thrown, consider just calling eventQualMatches in order to refetch all data
         throw new Error("Fail updating Qualification.  Match key was null on row:" + i)
       }else{
         // This is an update function, we shouldnt ignore cache whenupdating, just when resetting from the beginning.
@@ -454,11 +592,13 @@ function qualResults() {
   } // End of iterating over all data in sheet
   // Must remember to replace the header
   data.unshift(header)
+  // We don't need to clear the sheet because the data order and size should not have changed.
   sheet.getDataRange().setValues(data);
-  getOPRS(ignoreCache)
+  loadOPRS()
+  combineData()
 }
 
-function getOPRS(ignoreCache) {
+function loadOPRS(ignoreCache) {
   //
   const eventKey = getEventKey()
   if ( eventKey == null ){
@@ -468,7 +608,7 @@ function getOPRS(ignoreCache) {
   if ( sheet == null )
   {
     // Something went wrong, create the sheet with a call to another routine.
-    eventTeams(ignoreCache)
+    loadEventTeams(ignoreCache)
     sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.TEAMS)
   }
   var jsonOPR = tbaQuery("event/" + eventKey + "/oprs",ignoreCache)
@@ -487,5 +627,3 @@ function getOPRS(ignoreCache) {
     sheet.getDataRange().setValues(data);
   } // end of null jsonOPR
 }
-
-

@@ -37,10 +37,9 @@ Then there will be a warning saying that the script is unsafe.
 
 The script was created with the basic functionality in place, however there are a number of things that need to be done:
 - review canalytics.gs for TODO items and resolve.
-- Create a new function to find the next match for the specified team
+- Check combineData function, and consider when best to call it.  Maybe OnEdit is better?
 - Create plots and summaries on different sheets through code
-  - A Match Predictor ( Using both OPR, and scouting, what is the most likely outcome in autonomous, and overall match score for a particular match)
   - A Team Display ( Summary of all matches played by team, is their OPR rising or falling, what other performance indicators can we show )
-  - A fantasy match up: Given any six teams, what does the match predictor say about the alliance performance and chances to win.
+  - Ranking of all teams on several different facets.  OPR, rank, scouting score trend?
 - Adjust the function that reads the scoreBreakdown for the current year game.
 - Plan for scouting input.  Most likely, we will be using:  https://scout.iraiders.org/ https://github.com/iraiders/QRScout

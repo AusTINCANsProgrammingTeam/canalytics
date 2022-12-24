@@ -15,7 +15,7 @@
 // TODO: Freeze first row in each sheet
 // TODO: Auto resize columns
 // TODO: Standardize names for matchValues, matchData, etc.
-// TODO: combineData(); and loadOPRS.  Where should they go?
+// TODO: combineData(); and loadTeamDetails.  Where should they go?
 
 /** 
  * The following are general purpose routines and constants 
@@ -36,16 +36,16 @@ const Match = {
 const Prop = {
   TBA_API_KEY: "TBA_API_KEY",
   TEAM_KEY: "TEAM_KEY",
-  EVENT_KEY: "EVENT_KEY"
-
+  EVENT_KEY: "EVENT_KEY",
+  TEAM_DETAILS_HEADER: "TEAM_DETAILS_HEADER"
 }
 
 const Sheet = {
-  TEAMS : "Teams",
+  TEAMS : "Team Details ( TBA )",
   QUALIFICATIONS : "Qualifications",
   FINALS : 'Finals',
   SCOUTING : 'Scouting',
-  TEAM_SUMMARY : "Team Summary"
+  TEAM_SUMMARY : "Combined Team Summary"
 }
 
 // https://stackoverflow.com/questions/7033639/split-large-string-in-n-size-chunks-in-javascript
@@ -168,7 +168,7 @@ function scoreBreakdownSummary(matchValues,summaryData){
        if ( matchValues[k]['blue3_taxi'] == "Yes" ){ summaryData[matchValues[k]['blue3']]['taxi'] +=1 }
      }
    })
-   Object.keys(summaryData).forEach( k => { summaryData[k]['taxi_success'] = summaryData[k]['taxi'] + "/" + summaryData[k]['matches_total'] + " success"} )
+   Object.keys(summaryData).forEach( k => { summaryData[k]['taxi_success'] = summaryData[k]['taxi'] + "/" + summaryData[k]['matches_played'] + " success"} )
 }
 
 function scoutingSummaryHeader(){
@@ -275,7 +275,9 @@ function combineData(){
     SpreadsheetApp.getActive().insertSheet(Sheet.TEAM_SUMMARY)
     sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.TEAM_SUMMARY)
   }  
-  var header = ["team_number","oprs","matches_total","matches_won"]
+  var header = ["team_number"]
+  const tdHeader = teamDetailsHeader()
+  header = header.concat(tdHeader)
   header = header.concat(scoreBreakdownSummaryHeader())
   header = header.concat(scoutingSummaryHeader())
 
@@ -287,15 +289,13 @@ function combineData(){
   const TeamIndex =  {
     TEAM_NUMBER : teamHeader.indexOf('team_number'),
     NICKNAME : teamHeader.indexOf('nickname'),
-    OPRS : teamHeader.indexOf('oprs')
   }
+  
   var data = {} 
   for (var i = 0; i < teamData.length; i++) {
     data[teamData[i][TeamIndex.TEAM_NUMBER]] = {}
-    data[teamData[i][TeamIndex.TEAM_NUMBER]]['oprs']=teamData[i][TeamIndex.OPRS]
     data[teamData[i][TeamIndex.TEAM_NUMBER]]['nickname']=teamData[i][TeamIndex.NICKNAME]
-    data[teamData[i][TeamIndex.TEAM_NUMBER]]['matches_won']=0
-    data[teamData[i][TeamIndex.TEAM_NUMBER]]['matches_total']=0    
+    tdHeader.forEach(element => {data[teamData[i][TeamIndex.TEAM_NUMBER]][element] = teamData[i][teamHeader.indexOf(element)] })
   }
   var matchSheet = SpreadsheetApp.getActive().getSheetByName(Sheet.QUALIFICATIONS)
   var matchData = matchSheet.getDataRange().getValues()
@@ -306,25 +306,6 @@ function combineData(){
     matchValues[localKey] = {};
     matchHeader.forEach( h => matchValues[localKey][h]=r[matchHeader.indexOf(h)] )
   })  
-  Object.entries(matchValues).forEach( ([k,r]) => {
-    if ( r.post_result_time != "" ){
-      data[r.red1]['matches_total'] +=1;
-      data[r.red2]['matches_total'] +=1;
-      data[r.red3]['matches_total'] +=1;
-      data[r.blue1]['matches_total'] +=1;
-      data[r.blue2]['matches_total'] +=1;
-      data[r.blue3]['matches_total'] +=1;
-      if ( r.red_score > r.blue_score ){
-        data[r.red1]['matches_won'] += 1;
-        data[r.red2]['matches_won'] += 1;
-        data[r.red3]['matches_won'] += 1;
-      } else if ( r.red_score < r.blue_score ) {
-        data[r.blue1]['matches_won'] += 1;
-        data[r.blue2]['matches_won'] += 1;
-        data[r.blue3]['matches_won'] += 1;
-      };
-    };
-  }) // end of matchValues.forEach
   scoreBreakdownSummary(matchValues,data)
   // TODO: scouting summary function call.
   const values = Object.entries(data).map(([k, v]) => {
@@ -441,6 +422,7 @@ function tbaQuery(path, ignoreCache=false) {
   // Save the number of chunks in our stats object.
   cacheStats['numChunks'] = chunks.length
   cacheDocument.put("cacheStats:" + url, JSON.stringify(cacheStats), 21600)
+  Logger.log(jsonResult)
   return jsonResult
 }
 
@@ -453,16 +435,18 @@ function initEvent() {
   // It can also be used to ignore and rest the cache for all sheets.
   readEventKey();
   loadEventTeams(true);
-  loadOPRS(true);
+  loadTeamDetails(true);
   loadQualMatches(true); 
+  loadFinalMatches(false); //loadQualMatches has just fetched a new cache.
   combineData();
 }
 
 function loadEventTeams(ignoreCache = false ) {
   // With help from: https://stackoverflow.com/questions/64884530/populating-and-formatting-json-into-a-google-sheet
-  const header = ["key","team_number","nickname","oprs","ccwms","dprs","name"] //  oprs, ccwms, dprs will be added later.
+  var header = ["key","team_number","nickname"] //  
+  header = header.concat(teamDetailsHeader(ignoreCache))
+  header = header.concat(['name']) // Name is obnoxiously long, keep it at the end of the sheet.
   var sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.TEAMS)
-
   if( sheet == null)
   {
   //if returned null means the sheet doesnt exist, so create it
@@ -483,6 +467,7 @@ function loadEventTeams(ignoreCache = false ) {
   values.unshift(header);  // Add the header back to the data at the first row
   sheet.clear();
   sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
+  loadTeamDetails(ignoreCache)
 }
 
 function loadQualMatches(ignoreCache = false){
@@ -545,7 +530,7 @@ function updateQualResults() {
   // If the sheet doesn't exist, then let's just call loadQualMatches, which will create and fill the entire sheet
   if ( sheet === null ) {
     loadQualMatches()
-    loadOPRS()
+    loadTeamDetails()
     combineData()
     return
   }
@@ -594,15 +579,32 @@ function updateQualResults() {
   data.unshift(header)
   // We don't need to clear the sheet because the data order and size should not have changed.
   sheet.getDataRange().setValues(data);
-  loadOPRS()
+  loadTeamDetails()
   combineData()
 }
 
-function loadOPRS(ignoreCache) {
+function teamDetailsHeader(ignoreCache = false){
+  var header = documentProperties.getProperty(Prop.TEAM_DETAILS_HEADER)
+  if (header && ! ignoreCache) {return JSON.parse(header)}
+    const eventKey = getEventKey()
+  if ( eventKey == null ){
+    throw new Error("Fail updating team details header, Event Key was null")
+  }
+
+  header =  ['oprs','ccwms','dprs'] // THis is from the /oprs endpoint and is defined in the api.
+  var jsonRank =  tbaQuery("event/" + eventKey + "/rankings",ignoreCache) // THis will be cached, and used for loadTeamDetails.
+  header = header.concat(['rank','wins','losses','ties','matches_played']) // Part of the api spec
+  header = header.concat(jsonRank.sort_order_info.map(r => r.name))// sort_order and extra_stats can change year to year
+  header = header.concat(jsonRank.extra_stats_info.map(r => r.name)) // THis assumes that there are no duplicates in sort_order and extra stats
+  documentProperties.setProperty(Prop.TEAM_DETAILS_HEADER,JSON.stringify(header))
+  return header
+}
+
+function loadTeamDetails(ignoreCache) {
   //
   const eventKey = getEventKey()
   if ( eventKey == null ){
-    throw new Error("Fail updating OPRS, Event Key was null")
+    throw new Error("Fail updating team details, Event Key was null")
   }
   var sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.TEAMS)
   if ( sheet == null )
@@ -612,18 +614,40 @@ function loadOPRS(ignoreCache) {
     sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.TEAMS)
   }
   var jsonOPR = tbaQuery("event/" + eventKey + "/oprs",ignoreCache)
-  Logger.log(jsonOPR)
-  if ( jsonOPR != null ){ // This could mean no OPR scores.
-    var data = sheet.getDataRange().getValues();
-    // First row is the header
-    var header = data.shift()
-    for (var i = 0; i < data.length; i++) {
-      var teamKey = data[i][header.indexOf("key")]
+  var jsonRank = tbaQuery("event/" + eventKey + "/rankings",ignoreCache)
+  var rankHeader = []
+
+  if ( jsonRank != null ){
+    rankHeader = ['rank','wins','losses','ties','matches_played'].concat(jsonRank.sort_order_info.map(r => r.name)).concat(jsonRank.extra_stats_info.map(r => r.name))
+    sortOrderCount = jsonRank.sort_order_info.length
+    extraStatsCount = jsonRank.extra_stats_info.length
+    rankData = {}
+    jsonRank.rankings.forEach( row => {
+      rankData[row.team_key] = [row.rank,row.record.wins,row.record.losses,row.record.ties,row.matches_played]
+      rankData[row.team_key] = rankData[row.team_key].concat(row.sort_orders.slice(0,sortOrderCount)) 
+      rankData[row.team_key] = rankData[row.team_key].concat(row.extra_stats.slice(0,extraStatsCount))    
+    } )
+  } // end of not jsonRank null
+
+  if ( jsonRank == null && jsonOPR == null ){
+    return;
+  } // avoid expensive reading from sheet if there is nothing to update.
+
+  var data = sheet.getDataRange().getValues();
+  // First row is the header
+  var header = data.shift()
+  for (var i = 0; i < data.length; i++) {
+    var teamKey = data[i][header.indexOf("key")]
+    if ( jsonOPR != null ){
       data[i][header.indexOf("oprs")] = jsonOPR.oprs[teamKey]
       data[i][header.indexOf("ccwms")] = jsonOPR.ccwms[teamKey]
       data[i][header.indexOf('dprs')] = jsonOPR.dprs[teamKey]
     }
-    data.unshift(header)
-    sheet.getDataRange().setValues(data);
-  } // end of null jsonOPR
+    if ( jsonRank != null ){
+      rankHeader.forEach(element => {data[i][header.indexOf(element)] = rankData[teamKey][rankHeader.indexOf(element)]} )
+    }    
+  }
+  data.unshift(header)
+  sheet.getDataRange().setValues(data);
+  
 }

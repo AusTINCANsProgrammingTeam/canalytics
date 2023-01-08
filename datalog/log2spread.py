@@ -23,24 +23,16 @@ import argparse
 import re
 import plotly.express as px
 
-data_directories = ['/swerve/txout','/swerve/tyout']
+#Command To Run:
+#python datalog/log2spread.py datalog/input_files
 
-# input a dataframe, extract the series that matches with Name column,
+#Enter the names of the variables you would want read
+columns = ['/swerve/txout','/swerve/tyout', '/robot/loopCount']
+
 # return a series with True in any of the rows with a Name column matching our list of specific names.
 def keep_names( df ):
  names = df.loc[:,'Name']
- return names.apply(lambda n: n in ['/swerve/txout','/swerve/txout','/schedgen'])
-
-# input a dataframe, extract the series that matches with Name column,
-# return a series with True in any of the rows where the Name column matches a regular expression
-# "swerve|navX.*value|schedgen" means:
-#    swerve anywhere in the string, 
-#    or schedgen anywhere in the string.
-#    or navX followed by any characters, followed by Value.
-def keep_names_re( df ):
- names = df.loc[:,'Name']
- reg = re.compile(r"swerve|navX.*Value|schedgen")
- return names.apply(lambda n: bool(reg.search(n)))
+ return names.apply(lambda n: n in columns)
 
 # input a row, and return the timestamp of the Command Scheduler generation that matches the timestamp
 def find_generation ( row ):
@@ -51,19 +43,11 @@ def find_generation ( row ):
   t =  generations.loc[(generations['Timestamp'] < ts ) & (generations['End'] >= ts ),'Timestamp'].values[0]
   return t
 
-def compress_df(df):
-  # used to flatten dataframe to one log entry per cycle
-  pass
-
+#Place the file in the Output_files folder
 def log_output(filename, data):
   if not os.path.exists('datalog/output_files'):
     os.mkdir('datalog/output_files')
   data.to_csv('datalog/output_files/'+filename.split('.')[0] + '_output.csv')
-
-# If we print out dataframes, the following options make sure all of the data gets printed out.
-pd.set_option('display.max_rows', None)
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 300)
 
 # Read in the script parameters
 # https://docs.python.org/3/library/argparse.html#module-argparse
@@ -72,13 +56,13 @@ parser = argparse.ArgumentParser(
                     description = 'Create a CSV suitable for a spreadsheet program from DataLogTool output',
                     epilog = 'This script is an example, check the code for more ideas on how to improve')
 
+#Add the requirment of adding the file name to cammand line
 parser.add_argument("filename")
 args = parser.parse_args()
 
 
 # Read in file as CSV. We need the first line to contain the header.
-# We need all lines to have a timestamp, and there to be lines with /schedgen that do not have the same timestamp.
-
+# We need all lines to have a timestamp, and there to be lines with /loopCount that do not have the same timestamp.
 file_paths = [file for file in os.listdir(args.filename) if file.endswith('.csv')]
 df_list = []
 
@@ -87,14 +71,12 @@ for path in file_paths:
 
 
 for i, df in enumerate(df_list):
-  # Save all of the lines with name of schedgen in a new dataframe. 
+  # Save all of the lines with name of loopCount in a new dataframe. 
   # In our code, this is logged once per robot loop, in Robot.java right before calling CommandScheduler.run
-  # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.loc.html#pandas.DataFrame.loc
-  # We will call each run of the Command Scheduler a "generation" in this script.
   generations = df.loc[df['Name'] == "/robot/loopCount" ]
 
   # We need the start and end of the Schedule Generation, 
-  # so we shift the next row's timestamp backwards into a new column called End.
+  # so we shift the next row's timestamp backwards into a new column called End
   # The lines should already be in sorted order.
   generations['End'] = generations['Timestamp'].shift(-1)
 
@@ -102,15 +84,15 @@ for i, df in enumerate(df_list):
   # Tthe maximum value from our original dataframe is the end for that generation.
   generations.loc[pd.isna(generations["End"]),"End"] = max(df["Timestamp"])
 
-  # We also want a generation from the very earliest timestamp until the first schedgen row
+  # We also want a generation from the very earliest timestamp until the first loopCount row
   # this captures all data from when the robot turns on until the robot is enabled.
   first_gen = pd.DataFrame([[0,'/robot/loopCount',0,min(generations['Timestamp'])]], 
                           columns = ['Timestamp','Name','Value','End'])
   generations = pd.concat([first_gen,generations], ignore_index = True )
   
   # Only keep the Names that we want.
-  # Need to keep /schedgen for the rest of the script to work
-  df = df.loc[lambda x: keep_names_re(x)]
+  # Need to keep /loopCount for the rest of the script to work
+  df = df.loc[lambda x: keep_names(x)]
 
   df["GenTimestamp"] = df.apply(
       lambda row: find_generation(row),

@@ -81,6 +81,7 @@ function onOpen() {
       .addItem('Load Qual. Matches','loadQualMatches')
       .addItem('Update Qual. Results','updateQualResults')
       .addItem('Load Finals Matches','loadFinalMatches')
+      .addItem('Load Specific Team','specifyTeam')
       .addToUi();
 }
 
@@ -313,18 +314,25 @@ function specificScoutingSummaryHeader(){
 }
 
 function specificScoutingSummary(specificTeamObjects, specificScoutingObjects){
-  Object.keys(specificTeamObjects).forEach( k => {
+  /**Object.keys(specificTeamObjects).forEach( k => {
+      Logger.log("Hey")
       specificTeamObjects[k]['Auton Score']=0;
       specificTeamObjects[k]['Teleop Score']=0;
       specificTeamObjects[k]['Endgame Score']=0;
       specificTeamObjects[k]['Total Score']=0;
-   })
+   })**/
   Object.keys(specificScoutingObjects).forEach( k => {
       specificScoutingItem = specificScoutingObjects[k]
+      //Logger.log(specificScoutingItem)
+      specificScoutingItem['Auton Score'] = 0
+      specificScoutingItem['Teleop Score'] = 0
+      specificScoutingItem['Endgame Score'] = 0
+      specificScoutingItem['Total Score'] = 0
+
       var autonScore = 0  
       var teleopScore = 0
       var endgameScore = 0
-
+      
       if ( specificScoutingItem['Mobility Bonus'] == true ){
         autonScore +=3
       }
@@ -337,12 +345,10 @@ function specificScoutingSummary(specificTeamObjects, specificScoutingObjects){
       autonScore += specificScoutingItem['Auton High Pieces Scored']*6
       autonScore += specificScoutingItem['Auton Mid Pieces Scored']*4
       autonScore += specificScoutingItem['Auton Low Pieces Scored']*3
-      specificTeamObjects[specificScoutingItem['Team Number']['Match Number']]['Auton Score'] = autonScore
 
       teleopScore += specificScoutingItem['Teleop High Pieces Scored']*5
       teleopScore += specificScoutingItem['Teleop Mid Pieces Scored']*3
       teleopScore += specificScoutingItem['Teleop Low Pieces Scored']*2
-      specificTeamObjects[specificScoutingItem['Team Number']['Match Number']]['Teleop Score'] = teleopScore
 
       if (specificScoutingItem['Endgame Position'] == "PARK" ){
         endgameScore +=2
@@ -353,9 +359,13 @@ function specificScoutingSummary(specificTeamObjects, specificScoutingObjects){
       if (specificScoutingItem['Endgame Position'] == "ENGAGED" ){
         endgameScore +=10
       }
-      specificTeamObjects[specificScoutingItem['Team Number']['Match Number']]['Endgame Score'] = endgameScore
-
-      specificTeamObjects[specificScoutingItem['Team Number']['Match Number']]['Total Score'] = autonScore + teleopScore + endgameScore
+      Logger.log(specificScoutingItem)
+      
+      specificScoutingItem['Auton Score'] = autonScore
+      specificScoutingItem['Teleop Score'] = teleopScore
+      specificScoutingItem['Endgame Score'] = endgameScore
+      specificScoutingItem['Total Score'] = autonScore + teleopScore + endgameScore
+      specificTeamObjects.push(specificScoutingItem)
     }
   )
   return specificTeamObjects
@@ -480,12 +490,13 @@ function specifyTeam(){
     MATCH_NUMBER : sTeamHeader.indexOf('Match Number'),
   }
 
-  var specificTeamObjects = {} 
+  var specificTeamObjects = [] 
   for (var i = 0; i < sTeamData.length; i++) {
     specificTeamObjects[sTeamData[i][TeamIndex.MATCH_NUMBER]] = {}
   }
 
   const teamNumber = sheet.getRange(1, 2, 1, 1).getDisplayValue()
+  //Logger.log(teamNumber)
 
   var specificScoutingSheet = SpreadsheetApp.getActive().getSheetByName(Sheet.SCOUTING)
   var specificScoutingData = specificScoutingSheet.getDataRange().getValues()
@@ -495,20 +506,22 @@ function specifyTeam(){
     const localObject = {}
     specificScoutingHeader.forEach( h => localObject[h]=r[specificScoutingHeader.indexOf(h)] )
     if (localObject['Team Number'] == teamNumber) {
+      //Logger.log(localObject)
       specificScoutingObjects.push(localObject)
     }
   })
+  //Logger.log(specificScoutingObjects)
   specificScoutingSummary(specificTeamObjects, specificScoutingObjects)
 
   const specificTeamData = Object.entries(specificTeamObjects).map(([k, v]) => {
-    v["Match Number"]=k;
+    //v["Match Number"]=k;
     return header.map(h => v[h]);
   });
 
   specificTeamData.sort((a, b) => { return Number(a[0]) - Number(b[0])} ); 
   specificTeamData.unshift(header);  
   sheet.getRange(3, 1, specificTeamData.length, specificTeamData[0].length).setValues(specificTeamData); 
-  Logger.log(specificTeamObjects)
+  //Logger.log(specificTeamObjects)
 }
 
 
@@ -849,3 +862,4 @@ function loadTeamDetails(ignoreCache) {
   sheet.getDataRange().setValues(data);
   
 }
+

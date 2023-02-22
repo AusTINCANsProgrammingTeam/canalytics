@@ -369,6 +369,7 @@ function specificScoutingSummary(specificTeamObjects, specificScoutingObjects){
     }
   )
   return specificTeamObjects
+
 }
 
 /** 
@@ -448,7 +449,7 @@ function combineData(){
     matchHeader.forEach( h => matchObjects[localKey][h]=r[matchHeader.indexOf(h)] )
   })  
   scoreBreakdownSummary(matchObjects,summaryObjects)
-  
+
   var scoutingSheet = SpreadsheetApp.getActive().getSheetByName(Sheet.SCOUTING)
   var scoutingData = scoutingSheet.getDataRange().getValues()
   var scoutingHeader = scoutingData.shift()
@@ -807,6 +808,7 @@ function teamDetailsHeader(ignoreCache = false){
   header = header.concat(['rank','wins','losses','ties','matches_played']) // Part of the api spec
   header = header.concat(rankResults.sort_order_info.map(r => r.name))// sort_order and extra_stats can change year to year
   header = header.concat(rankResults.extra_stats_info.map(r => r.name)) // This assumes that there are no duplicates in sort_order and extra stats
+
   documentProperties.setProperty(Prop.TEAM_DETAILS_HEADER,JSON.stringify(header))
   return header
 }

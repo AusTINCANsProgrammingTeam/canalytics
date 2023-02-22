@@ -71,18 +71,18 @@ function chunkSubstr(str, size) {
  */
 
 function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu('ausTIN CANalytics')
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('ausTIN CANalytics')
       .addItem('TBA API Key','readAPIKey')
       .addItem('Event Key and Initialize', 'initEvent' )
       .addItem('Reset API Key','resetAPIKey')
       .addSeparator()
-      .addItem('Load Teams List','loadEventTeams')
-      .addItem('Load Qual. Matches','loadQualMatches')
-      .addItem('Update Qual. Results','updateQualResults')
-      .addItem('Load Finals Matches','loadFinalMatches')
-      .addItem('Load Specific Team','specifyTeam')
-      .addToUi();
+      .addItem('Load Teams List','loadEventTeams')
+      .addItem('Load Qual. Matches','loadQualMatches')
+      .addItem('Update Qual. Results','updateQualResults')
+      .addItem('Load Finals Matches','loadFinalMatches')
+      .addItem('Load Specific Team','specifyTeam')
+      .addToUi();
 }
 
 function readAPIKey() {
@@ -127,32 +127,42 @@ function getEventKey() {
 // the value needs to be calcualted in the scoreBreakdown function
 function scoreBreakdownHeader(){
   // return year specific score breakdown header
-  return ["red1_taxi","red2_taxi","red3_taxi",
+  return ["red1_mobility","red2_mobility","red3_mobility",
+    "red1_auton","red2_auton","red3_auton",
     "red1_endgame","red2_endgame","red3_endgame",
-    "blue1_taxi","blue2_taxi","blue3_taxi",
+    "blue1_mobility","blue2_mobility","blue3_mobility",
+    "blue1_auton","blue2_auton","blue3_auton",
     "blue1_endgame","blue2_endgame","blue3_endgame"]    
 }
 function scoreBreakdown(match){
   // Breakdown year specific score information.  Set up for 2022 season
   // Make changes directly to the incoming object
   var sbd=match.score_breakdown
-  match.red1_taxi = sbd.red.taxiRobot1
-  match.red2_taxi = sbd.red.taxiRobot2
-  match.red3_taxi = sbd.red.taxiRobot3
-  match.blue1_taxi = sbd.blue.taxiRobot1
-  match.blue2_taxi = sbd.blue.taxiRobot2
-  match.blue3_taxi = sbd.blue.taxiRobot3
-  match.red1_endgame = sbd.red.endgameRobot1
-  match.red2_endgame = sbd.red.endgameRobot2
-  match.red3_endgame = sbd.red.endgameRobot3
-  match.blue1_endgame = sbd.blue.endgameRobot1
-  match.blue2_endgame = sbd.blue.endgameRobot2
-  match.blue3_endgame = sbd.blue.endgameRobot3
+  match.red1_mobility = sbd.red.mobilityRobot1
+  match.red2_mobility = sbd.red.mobilityRobot2
+  match.red3_mobility = sbd.red.mobilityRobot3
+  match.blue1_mobility = sbd.blue.mobilityRobot1
+  match.blue2_mobility = sbd.blue.mobilityRobot2
+  match.blue3_mobility = sbd.blue.mobilityRobot3
+  match.red1_auton = sbd.red.autoChargeStationRobot1
+  match.red2_auton = sbd.red.autoChargeStationRobot2
+  match.red3_auton = sbd.red.autoChargeStationRobot3
+  match.blue1_auton = sbd.blue.autoChargeStationRobot1
+  match.blue2_auton = sbd.blue.autoChargeStationRobot2
+  match.blue3_auton = sbd.blue.autoChargeStationRobot3
+  match.red1_endgame = sbd.red.endGameChargeStationRobot1
+  match.red2_endgame = sbd.red.endGameChargeStationRobot2
+  match.red3_endgame = sbd.red.endGameChargeStationRobot3
+  match.blue1_endgame = sbd.blue.endGameChargeStationRobot1
+  match.blue2_endgame = sbd.blue.endGameChargeStationRobot2
+  match.blue3_endgame = sbd.blue.endGameChargeStationRobot3
 }
 
+
 function scoreBreakdownSummaryHeader(){
-  return ["taxi_success","highest_climb"]
+  return ["mobility_success","docked_success"]
 }
+
 
 function scoreBreakdownSummary(matchObjects, summaryObjects){
   /**
@@ -162,24 +172,33 @@ function scoreBreakdownSummary(matchObjects, summaryObjects){
    * summaryObjects is the array of objects containing summarized data 
    */
 
+
   Object.keys(summaryObjects).forEach( k => {
-      summaryObjects[k]['taxi']=0;
-      summaryObjects[k]['highest_climb']=0;
-      summaryObjects[k]['total_climb_score']=0;
+      summaryObjects[k]['mobility']=0;
+      summaryObjects[k]['docked']=0;
    })
    Object.keys(matchObjects).forEach( k => {
      if ( matchObjects[k]['post_result_time'] != ""){
        matchItem = matchObjects[k]
-       if ( matchItem['red1_taxi'] == "Yes" ){ summaryObjects[matchItem['red1']]['taxi'] +=1 }
-       if ( matchItem['red2_taxi'] == "Yes" ){ summaryObjects[matchItem['red2']]['taxi'] +=1 }
-       if ( matchItem['red3_taxi'] == "Yes" ){ summaryObjects[matchItem['red3']]['taxi'] +=1 }
-       if ( matchItem['blue1_taxi'] == "Yes" ){ summaryObjects[matchItem['blue1']]['taxi'] +=1 }
-       if ( matchItem['blue2_taxi'] == "Yes" ){ summaryObjects[matchItem['blue2']]['taxi'] +=1 }
-       if ( matchItem['blue3_taxi'] == "Yes" ){ summaryObjects[matchItem['blue3']]['taxi'] +=1 }
+       if ( matchItem['red1_mobility'] == "Yes" ){ summaryObjects[matchItem['red1']]['mobility'] +=1 }
+       if ( matchItem['red2_mobility'] == "Yes" ){ summaryObjects[matchItem['red2']]['mobility'] +=1 }
+       if ( matchItem['red3_mobility'] == "Yes" ){ summaryObjects[matchItem['red3']]['mobility'] +=1 }
+       if ( matchItem['blue1_mobility'] == "Yes" ){ summaryObjects[matchItem['blue1']]['mobility'] +=1 }
+       if ( matchItem['blue2_mobility'] == "Yes" ){ summaryObjects[matchItem['blue2']]['mobility'] +=1 }
+       if ( matchItem['blue3_mobility'] == "Yes" ){ summaryObjects[matchItem['blue3']]['mobility'] +=1 }
+     
+       if ( matchItem['red1_endgame'] == "Docked" ){ summaryObjects[matchItem['red1']]['docked'] +=1 }
+       if ( matchItem['red2_endgame'] == "Docked" ){ summaryObjects[matchItem['red2']]['docked'] +=1 }
+       if ( matchItem['red3_endgame'] == "Docked" ){ summaryObjects[matchItem['red3']]['docked'] +=1 }
+       if ( matchItem['blue1_endgame'] == "Docked" ){ summaryObjects[matchItem['blue1']]['docked'] +=1 }
+       if ( matchItem['blue2_endgame'] == "Docked" ){ summaryObjects[matchItem['blue2']]['docked'] +=1 }
+       if ( matchItem['blue3_endgame'] == "Docked" ){ summaryObjects[matchItem['blue3']]['docked'] +=1 }
      }
    })
 
-   Object.keys(summaryObjects).forEach( k => { summaryObjects[k]['taxi_success'] = summaryObjects[k]['taxi'] + "/" + summaryObjects[k]['matches_played'] + " success"} )
+
+   Object.keys(summaryObjects).forEach( k => { summaryObjects[k]['mobility_success'] = summaryObjects[k]['mobility'] + "/" + summaryObjects[k]['matches_played'] + " success"} )
+   Object.keys(summaryObjects).forEach( k => { summaryObjects[k]['docked_success'] = summaryObjects[k]['docked'] + "/" + summaryObjects[k]['matches_played'] + " success"} )
 }
 
 function scoutingSummaryHeader(){
@@ -193,6 +212,7 @@ function scoutingSummaryHeader(){
 function scoutingSummary(summaryObjects, scoutingObjects){
   // Read in scouting sheet, 
   // do calculations on it to return a summary.
+  /**
   Object.keys(summaryObjects).forEach( k => {
       summaryObjects[k]['No_Show']=0;
       summaryObjects[k]['Died_Disabled']=0;
@@ -305,6 +325,7 @@ function scoutingSummary(summaryObjects, scoutingObjects){
       summaryObjects[k]['Avg_Endgame_Score'] = summaryObjects[k]['Avg_Endgame_Score']/summaryObjects[k]['Matches_Played']
     }
   })
+**/
 
   return summaryObjects
 }
@@ -864,4 +885,3 @@ function loadTeamDetails(ignoreCache) {
   sheet.getDataRange().setValues(data);
   
 }
-

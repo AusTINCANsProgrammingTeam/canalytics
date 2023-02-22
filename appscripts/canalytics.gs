@@ -51,7 +51,8 @@ const Sheet = {
   QUALIFICATIONS : "Qualifications",
   FINALS : 'Finals',
   SCOUTING : 'Scouting',
-  TEAM_SUMMARY : "Combined Team Summary"
+  TEAM_SUMMARY : "Combined Team Summary",
+  SPECIFIC_TEAM : "Specific Team"
 }
 
 // https://stackoverflow.com/questions/7033639/split-large-string-in-n-size-chunks-in-javascript
@@ -80,6 +81,7 @@ function onOpen() {
       .addItem('Load Qual. Matches','loadQualMatches')
       .addItem('Update Qual. Results','updateQualResults')
       .addItem('Load Finals Matches','loadFinalMatches')
+      .addItem('Load Specific Team','specifyTeam')
       .addToUi();
 }
 
@@ -307,6 +309,69 @@ function scoutingSummary(summaryObjects, scoutingObjects){
   return summaryObjects
 }
 
+function specificScoutingSummaryHeader(){
+  return ["Auton Score", "Teleop Score", "Endgame Score", "Total Score"]
+}
+
+function specificScoutingSummary(specificTeamObjects, specificScoutingObjects){
+  /**Object.keys(specificTeamObjects).forEach( k => {
+      Logger.log("Hey")
+      specificTeamObjects[k]['Auton Score']=0;
+      specificTeamObjects[k]['Teleop Score']=0;
+      specificTeamObjects[k]['Endgame Score']=0;
+      specificTeamObjects[k]['Total Score']=0;
+   })**/
+  Object.keys(specificScoutingObjects).forEach( k => {
+      specificScoutingItem = specificScoutingObjects[k]
+      //Logger.log(specificScoutingItem)
+      specificScoutingItem['Auton Score'] = 0
+      specificScoutingItem['Teleop Score'] = 0
+      specificScoutingItem['Endgame Score'] = 0
+      specificScoutingItem['Total Score'] = 0
+
+      var autonScore = 0  
+      var teleopScore = 0
+      var endgameScore = 0
+      
+      if ( specificScoutingItem['Mobility Bonus'] == true ){
+        autonScore +=3
+      }
+      if ( specificScoutingItem['Docked/Engaged'] == "DOCK" ){
+        autonScore +=8
+      }
+      if ( specificScoutingItem['Docked/Engaged'] == "ENGAGED" ){
+        autonScore +=12
+      }
+      autonScore += specificScoutingItem['Auton High Pieces Scored']*6
+      autonScore += specificScoutingItem['Auton Mid Pieces Scored']*4
+      autonScore += specificScoutingItem['Auton Low Pieces Scored']*3
+
+      teleopScore += specificScoutingItem['Teleop High Pieces Scored']*5
+      teleopScore += specificScoutingItem['Teleop Mid Pieces Scored']*3
+      teleopScore += specificScoutingItem['Teleop Low Pieces Scored']*2
+
+      if (specificScoutingItem['Endgame Position'] == "PARK" ){
+        endgameScore +=2
+      }
+      if (specificScoutingItem['Endgame Position'] == "DOCK" ){
+        endgameScore +=6
+      }
+      if (specificScoutingItem['Endgame Position'] == "ENGAGED" ){
+        endgameScore +=10
+      }
+      Logger.log(specificScoutingItem)
+      
+      specificScoutingItem['Auton Score'] = autonScore
+      specificScoutingItem['Teleop Score'] = teleopScore
+      specificScoutingItem['Endgame Score'] = endgameScore
+      specificScoutingItem['Total Score'] = autonScore + teleopScore + endgameScore
+      specificTeamObjects.push(specificScoutingItem)
+    }
+  )
+  return specificTeamObjects
+
+}
+
 /** 
  * Functions to create charts and summary tables of information
  * 
@@ -384,8 +449,7 @@ function combineData(){
     matchHeader.forEach( h => matchObjects[localKey][h]=r[matchHeader.indexOf(h)] )
   })  
   scoreBreakdownSummary(matchObjects,summaryObjects)
-  
-  // TODO: scouting summary function call.
+
   var scoutingSheet = SpreadsheetApp.getActive().getSheetByName(Sheet.SCOUTING)
   var scoutingData = scoutingSheet.getDataRange().getValues()
   var scoutingHeader = scoutingData.shift()
@@ -407,6 +471,61 @@ function combineData(){
   sheet.clear();
   sheet.getRange(1, 1, summaryData.length, summaryData[0].length).setValues(summaryData);
 }
+
+function specifyTeam(){
+  var sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.SPECIFIC_TEAM)
+  if ( sheet == null )
+  {
+    SpreadsheetApp.getActive().insertSheet(Sheet.SPECIFIC_TEAM)
+    sheet = SpreadsheetApp.getActive().getSheetByName(Sheet.SPECIFIC_TEAM)
+  }  
+  var header = ["Match Number"]
+  header = header.concat(specificScoutingSummaryHeader())
+
+  var sTeamSheet = SpreadsheetApp.getActive().getSheetByName(Sheet.TEAMS)
+  var sTeamData = sTeamSheet.getDataRange().getValues();
+  // First row is the header
+  var sTeamHeader = sTeamData.shift()
+  // Translate the data into an object.  Easier to append information
+  const TeamIndex =  {
+    MATCH_NUMBER : sTeamHeader.indexOf('Match Number'),
+  }
+
+  var specificTeamObjects = [] 
+  for (var i = 0; i < sTeamData.length; i++) {
+    specificTeamObjects[sTeamData[i][TeamIndex.MATCH_NUMBER]] = {}
+  }
+
+  const teamNumber = sheet.getRange(1, 2, 1, 1).getDisplayValue()
+  //Logger.log(teamNumber)
+
+  var specificScoutingSheet = SpreadsheetApp.getActive().getSheetByName(Sheet.SCOUTING)
+  var specificScoutingData = specificScoutingSheet.getDataRange().getValues()
+  var specificScoutingHeader = specificScoutingData.shift()
+  var specificScoutingObjects = []
+  specificScoutingData.forEach(r => { 
+    const localObject = {}
+    specificScoutingHeader.forEach( h => localObject[h]=r[specificScoutingHeader.indexOf(h)] )
+    if (localObject['Team Number'] == teamNumber) {
+      //Logger.log(localObject)
+      specificScoutingObjects.push(localObject)
+    }
+  })
+  //Logger.log(specificScoutingObjects)
+  specificScoutingSummary(specificTeamObjects, specificScoutingObjects)
+
+  const specificTeamData = Object.entries(specificTeamObjects).map(([k, v]) => {
+    //v["Match Number"]=k;
+    return header.map(h => v[h]);
+  });
+
+  specificTeamData.sort((a, b) => { return Number(a[0]) - Number(b[0])} ); 
+  specificTeamData.unshift(header);  
+  sheet.getRange(3, 1, specificTeamData.length, specificTeamData[0].length).setValues(specificTeamData); 
+  //Logger.log(specificTeamObjects)
+}
+
+
 
 /**
  *  Function to gather external information from TBA through REST API
@@ -529,6 +648,7 @@ function initEvent() {
   loadQualMatches(true); 
   loadFinalMatches(false); //loadQualMatches has just fetched a new cache, silly to ignore it again.
   combineData();
+  specifyTeam();
 }
 
 function loadEventTeams(ignoreCache = false ) {
@@ -563,6 +683,7 @@ function loadEventTeams(ignoreCache = false ) {
 function loadQualMatches(ignoreCache = false){
   loadMatches_(ignoreCache,Match.QUALIFICATIONS)
   combineData()
+  specifyTeam()
 }
 
 function loadFinalMatches(ignoreCache = false) {
@@ -622,6 +743,7 @@ function updateQualResults() {
     loadQualMatches()
     loadTeamDetails()
     combineData()
+    specifyTeam()
     return
   }
   const timeZone = Session.getScriptTimeZone();
@@ -670,6 +792,7 @@ function updateQualResults() {
   sheet.getDataRange().setValues(qualData);
   loadTeamDetails()
   combineData()
+  specifyTeam()
 }
 
 function teamDetailsHeader(ignoreCache = false){
@@ -680,11 +803,12 @@ function teamDetailsHeader(ignoreCache = false){
     throw new Error("Fail updating team details header, Event Key was null")
   }
 
-  header =  ['oprs','ccwms','dprs'] // THis is from the /oprs endpoint and is defined in the api.
-  var rankResults =  tbaQuery("event/" + eventKey + "/rankings",ignoreCache) // THis will be cached, and used for loadTeamDetails.
+  header =  ['oprs','ccwms','dprs'] // This is from the /oprs endpoint and is defined in the api.
+  var rankResults =  tbaQuery("event/" + eventKey + "/rankings",ignoreCache) // This will be cached, and used for loadTeamDetails.
   header = header.concat(['rank','wins','losses','ties','matches_played']) // Part of the api spec
   header = header.concat(rankResults.sort_order_info.map(r => r.name))// sort_order and extra_stats can change year to year
-  header = header.concat(rankResults.extra_stats_info.map(r => r.name)) // THis assumes that there are no duplicates in sort_order and extra stats
+  header = header.concat(rankResults.extra_stats_info.map(r => r.name)) // This assumes that there are no duplicates in sort_order and extra stats
+
   documentProperties.setProperty(Prop.TEAM_DETAILS_HEADER,JSON.stringify(header))
   return header
 }
@@ -740,3 +864,4 @@ function loadTeamDetails(ignoreCache) {
   sheet.getDataRange().setValues(data);
   
 }
+

@@ -71,18 +71,18 @@ function chunkSubstr(str, size) {
  */
 
 function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu('ausTIN CANalytics')
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('ausTIN CANalytics')
       .addItem('TBA API Key','readAPIKey')
       .addItem('Event Key and Initialize', 'initEvent' )
       .addItem('Reset API Key','resetAPIKey')
       .addSeparator()
-      .addItem('Load Teams List','loadEventTeams')
-      .addItem('Load Qual. Matches','loadQualMatches')
-      .addItem('Update Qual. Results','updateQualResults')
-      .addItem('Load Finals Matches','loadFinalMatches')
-      .addItem('Load Specific Team','specifyTeam')
-      .addToUi();
+      .addItem('Load Teams List','loadEventTeams')
+      .addItem('Load Qual. Matches','loadQualMatches')
+      .addItem('Update Qual. Results','updateQualResults')
+      .addItem('Load Finals Matches','loadFinalMatches')
+      .addItem('Load Specific Team','specifyTeam')
+      .addToUi();
 }
 
 function readAPIKey() {
@@ -127,31 +127,25 @@ function getEventKey() {
 // the value needs to be calcualted in the scoreBreakdown function
 function scoreBreakdownHeader(){
   // return year specific score breakdown header
-  return ["red1_taxi","red2_taxi","red3_taxi",
-    "red1_endgame","red2_endgame","red3_endgame",
-    "blue1_taxi","blue2_taxi","blue3_taxi",
+  return ["red1_endgame","red2_endgame","red3_endgame",
     "blue1_endgame","blue2_endgame","blue3_endgame"]    
 }
 function scoreBreakdown(match){
   // Breakdown year specific score information.  Set up for 2022 season
   // Make changes directly to the incoming object
   var sbd=match.score_breakdown
-  match.red1_taxi = sbd.red.taxiRobot1
-  match.red2_taxi = sbd.red.taxiRobot2
-  match.red3_taxi = sbd.red.taxiRobot3
-  match.blue1_taxi = sbd.blue.taxiRobot1
-  match.blue2_taxi = sbd.blue.taxiRobot2
-  match.blue3_taxi = sbd.blue.taxiRobot3
-  match.red1_endgame = sbd.red.endgameRobot1
-  match.red2_endgame = sbd.red.endgameRobot2
-  match.red3_endgame = sbd.red.endgameRobot3
-  match.blue1_endgame = sbd.blue.endgameRobot1
-  match.blue2_endgame = sbd.blue.endgameRobot2
-  match.blue3_endgame = sbd.blue.endgameRobot3
+  if ( sbd ){
+    match.red1_endgame = sbd.red.endgameRobot1
+    match.red2_endgame = sbd.red.endgameRobot2
+    match.red3_endgame = sbd.red.endgameRobot3
+    match.blue1_endgame = sbd.blue.endgameRobot1
+    match.blue2_endgame = sbd.blue.endgameRobot2
+    match.blue3_endgame = sbd.blue.endgameRobot3
+  }
 }
 
 function scoreBreakdownSummaryHeader(){
-  return ["taxi_success","highest_climb"]
+  return []
 }
 
 function scoreBreakdownSummary(matchObjects, summaryObjects){
@@ -162,7 +156,7 @@ function scoreBreakdownSummary(matchObjects, summaryObjects){
    * summaryObjects is the array of objects containing summarized data 
    */
 
-  Object.keys(summaryObjects).forEach( k => {
+  /**Object.keys(summaryObjects).forEach( k => {
       summaryObjects[k]['taxi']=0;
       summaryObjects[k]['highest_climb']=0;
       summaryObjects[k]['total_climb_score']=0;
@@ -179,15 +173,17 @@ function scoreBreakdownSummary(matchObjects, summaryObjects){
      }
    })
 
-   Object.keys(summaryObjects).forEach( k => { summaryObjects[k]['taxi_success'] = summaryObjects[k]['taxi'] + "/" + summaryObjects[k]['matches_played'] + " success"} )
+   Object.keys(summaryObjects).forEach( k => { summaryObjects[k]['taxi_success'] = summaryObjects[k]['taxi'] + "/" + summaryObjects[k]['matches_played'] + " success"} )**/
 }
 
 function scoutingSummaryHeader(){
   return ["No_Show", "Died_Disabled", 
     "Yellow_Flags", "Red_Flags", "Tipped_Over", 
+    "Auton_Balance_Attempt", "Auton_Balance_Success", "Auton_Balance_Rate",
     "Avg_Auton_Score", "Avg_Auton_GPs", 
     "Avg_Teleop_Score (no links)", "Avg_Teleop_GPs", 
-    "Avg_Endgame_Score", "Pieces_Scored", "Matches_Played"]
+    "Avg_Endgame_Score", "Total_Avg_Score", "Total_Avg_GPs", 
+    "Pieces_Scored", "Matches_Played"]
 }
 
 function scoutingSummary(summaryObjects, scoutingObjects){
@@ -199,110 +195,140 @@ function scoutingSummary(summaryObjects, scoutingObjects){
       summaryObjects[k]['Yellow_Flags']=0;
       summaryObjects[k]['Red_Flags']=0;
       summaryObjects[k]['Tipped_Over']=0;
+      summaryObjects[k]['Auton_Balance_Attempt']=0;
+      summaryObjects[k]['Auton_Balance_Success']=0;
+      summaryObjects[k]['Auton_Balance_Rate']="N/A";
       summaryObjects[k]['Avg_Auton_Score']=0;
       summaryObjects[k]['Avg_Auton_GPs']=0;
       summaryObjects[k]['Avg_Teleop_Score (no links)']=0;
       summaryObjects[k]['Avg_Teleop_GPs']=0;
       summaryObjects[k]['Avg_Endgame_Score']=0;
+      summaryObjects[k]['Total_Avg_Score']=0;
+      summaryObjects[k]['Total_Avg_GPs']=0;
       summaryObjects[k]['Matches_Played']=0;
       summaryObjects[k]['Pieces_Scored']="none";
    })
    Object.keys(scoutingObjects).forEach( k => {
       scoutingItem = scoutingObjects[k]
+      var balanceAttempted = 0
+      var balanceSucceeded = 0
       var autonScore = 0  
       var autonGP = 0
       var teleopScore = 0
       var teleopGP = 0
       var endgameScore = 0
 
-      if ( scoutingItem['No Show'] == true ){ 
-        summaryObjects[scoutingItem['Team Number']]['No_Show'] +=1 
-      }
-      else { summaryObjects[scoutingItem['Team Number']]['Matches_Played'] += 1 }
-      if ( scoutingItem['Died/Disabled'] == true ){ 
-        summaryObjects[scoutingItem['Team Number']]['Died_Disabled'] +=1 
-      }
-      if ( scoutingItem['Flagged'] == "YELLOW" ){ 
-        summaryObjects[scoutingItem['Team Number']]['Yellow_Flags'] +=1 
-      }
-      if ( scoutingItem['Flagged'] == "RED" ){ 
-        summaryObjects[scoutingItem['Team Number']]['Red_Flags'] +=1
-      }
-      if ( scoutingItem['Tipped Over'] == true ){ 
-        summaryObjects[scoutingItem['Team Number']]['Tipped_Over'] +=1 
-      }
+      if ( !summaryObjects[scoutingItem['Team Number']] ) {
+        // If there isn't a summaryObjects entry for a team, then there is a mistake in scouting, ignore and continue
+        Logger.log("Team number " + scoutingItem['Team Number'] + " exists in scouting, but not in qualification matches")
+      }else{
+        if ( scoutingItem['No Show'] == true ){ 
+          summaryObjects[scoutingItem['Team Number']]['No_Show'] +=1 
+        }
+        else { summaryObjects[scoutingItem['Team Number']]['Matches_Played'] += 1 }
+        if ( scoutingItem['Died/Disabled'] == true ){ 
+          summaryObjects[scoutingItem['Team Number']]['Died_Disabled'] +=1 
+        }
+        if ( scoutingItem['Flagged'] == "YELLOW" ){ 
+          summaryObjects[scoutingItem['Team Number']]['Yellow_Flags'] +=1 
+        }
+        if ( scoutingItem['Flagged'] == "RED" ){ 
+          summaryObjects[scoutingItem['Team Number']]['Red_Flags'] +=1
+        }
+        if ( scoutingItem['Tipped Over'] == true ){ 
+          summaryObjects[scoutingItem['Team Number']]['Tipped_Over'] +=1 
+        }
 
-      if ( summaryObjects[scoutingItem['Team Number']]['Matches_Played'] > 0 ) {
-        if ( scoutingItem['Mobility Bonus'] == true ){
-          autonScore +=3
-        }
-        if (scoutingItem['Docked/Engaged'] == "DOCK" ){
-          autonScore +=8
-        }
-        if (scoutingItem['Docked/Engaged'] == "ENGAGED" ){
-          autonScore +=12
-        }
-        autonScore += scoutingItem['Auton High Pieces Scored']*6
-        autonScore += scoutingItem['Auton Mid Pieces Scored']*4
-        autonScore += scoutingItem['Auton Low Pieces Scored']*3
-        autonGP += scoutingItem['Auton High Pieces Scored']+scoutingItem['Auton Mid Pieces Scored']+scoutingItem['Auton Low Pieces Scored']
-        summaryObjects[scoutingItem['Team Number']]['Avg_Auton_Score'] += autonScore
-        summaryObjects[scoutingItem['Team Number']]['Avg_Auton_GPs'] += autonGP
+        if ( summaryObjects[scoutingItem['Team Number']]['Matches_Played'] > 0 ) {
+          if ( scoutingItem['Mobility Bonus'] == true ){
+            autonScore +=3
+          }
+          if (scoutingItem['Docked/Engaged/Failed'] == "DOCK" ){
+            autonScore +=8
+            balanceAttempted += 1
+            balanceSucceeded += 1
+          }
+          if (scoutingItem['Docked/Engaged/Failed'] == "ENGAGED" ){
+            autonScore +=12
+            balanceAttempted += 1
+            balanceSucceeded += 1
+          }
+          if (scoutingItem['Docked/Engaged/Failed'] == "FAILED" ){
+            balanceAttempted += 1
+          }
+          summaryObjects[scoutingItem['Team Number']]['Auton_Balance_Attempt'] += balanceAttempted
+          summaryObjects[scoutingItem['Team Number']]['Auton_Balance_Success'] += balanceSucceeded
 
-        teleopScore += scoutingItem['Teleop High Pieces Scored']*5
-        teleopScore += scoutingItem['Teleop Mid Pieces Scored']*3
-        teleopScore += scoutingItem['Teleop Low Pieces Scored']*2
-        teleopGP += scoutingItem['Teleop High Pieces Scored']+scoutingItem['Teleop Mid Pieces Scored']+scoutingItem['Teleop Low Pieces Scored']
-        summaryObjects[scoutingItem['Team Number']]['Avg_Teleop_Score (no links)'] += teleopScore
-        summaryObjects[scoutingItem['Team Number']]['Avg_Teleop_GPs'] += teleopGP
+          autonScore += scoutingItem['Auton High Pieces Scored']*6
+          autonScore += scoutingItem['Auton Mid Pieces Scored']*4
+          autonScore += scoutingItem['Auton Low Pieces Scored']*3
+          autonGP += scoutingItem['Auton High Pieces Scored']+scoutingItem['Auton Mid Pieces Scored']+scoutingItem['Auton Low Pieces Scored']
+          summaryObjects[scoutingItem['Team Number']]['Avg_Auton_Score'] += autonScore
+          summaryObjects[scoutingItem['Team Number']]['Avg_Auton_GPs'] += autonGP
 
-        if (scoutingItem['Endgame Position'] == "PARK" ){
-          endgameScore +=2
-        }
-        if (scoutingItem['Endgame Position'] == "DOCK" ){
-          endgameScore +=6
-        }
-        if (scoutingItem['Endgame Position'] == "ENGAGED" ){
-          endgameScore +=10
-        }
-        summaryObjects[scoutingItem['Team Number']]['Avg_Endgame_Score'] += endgameScore
-      }
+          teleopScore += scoutingItem['Teleop High Pieces Scored']*5
+          teleopScore += scoutingItem['Teleop Mid Pieces Scored']*3
+          teleopScore += scoutingItem['Teleop Low Pieces Scored']*2
+          teleopGP += scoutingItem['Teleop High Pieces Scored']+scoutingItem['Teleop Mid Pieces Scored']+scoutingItem['Teleop Low Pieces Scored']
+          summaryObjects[scoutingItem['Team Number']]['Avg_Teleop_Score (no links)'] += teleopScore
+          summaryObjects[scoutingItem['Team Number']]['Avg_Teleop_GPs'] += teleopGP
 
-      if ( summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] == "none" ) {
-        if (scoutingItem['Pieces Scored on Mid/High'] == "BOTH" ){
+          if (scoutingItem['Endgame Position'] == "PARK" ){
+            endgameScore +=2
+          }
+          if (scoutingItem['Endgame Position'] == "DOCK" ){
+            endgameScore +=6
+          } 
+          if (scoutingItem['Endgame Position'] == "ENGAGED" ){
+            endgameScore +=10
+          }
+          summaryObjects[scoutingItem['Team Number']]['Avg_Endgame_Score'] += endgameScore
+
+          summaryObjects[scoutingItem['Team Number']]['Total_Avg_Score'] += autonScore + teleopScore + endgameScore
+          summaryObjects[scoutingItem['Team Number']]['Total_Avg_GPs'] += autonGP + teleopGP
+        }
+
+        if ( summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] == "none" ) {
+          if (scoutingItem['Pieces Scored on Mid/High'] == "BOTH" ){
             summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] = "both"
           }
-        if (scoutingItem['Pieces Scored on Mid/High'] == "CUBES" ){
+          if (scoutingItem['Pieces Scored on Mid/High'] == "CUBES" ){
             summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] = "cubes"
           }
-        if (scoutingItem['Pieces Scored on Mid/High'] == "CONES" ){
+          if (scoutingItem['Pieces Scored on Mid/High'] == "CONES" ){
             summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] = "cones"
           }
-      }
-      if ( summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] == "cones" ) {
-        if (scoutingItem['Pieces Scored on Mid/High'] == "BOTH" ){
+        }
+        if ( summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] == "cones" ) {
+          if (scoutingItem['Pieces Scored on Mid/High'] == "BOTH" ){
             summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] = "both"
           }
-        if (scoutingItem['Pieces Scored on Mid/High'] == "CUBES" ){
+          if (scoutingItem['Pieces Scored on Mid/High'] == "CUBES" ){
             summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] = "both"
           }
-      }
-      if ( summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] == "cubes" ) {
-        if (scoutingItem['Pieces Scored on Mid/High'] == "BOTH" ){
+        }
+        if ( summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] == "cubes" ) {
+          if (scoutingItem['Pieces Scored on Mid/High'] == "BOTH" ){
             summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] = "both"
           }
-        if (scoutingItem['Pieces Scored on Mid/High'] == "CONES" ){
+          if (scoutingItem['Pieces Scored on Mid/High'] == "CONES" ){
             summaryObjects[scoutingItem['Team Number']]['Pieces_Scored'] = "both"
           }
+        }
       }
    })  
   Object.keys(summaryObjects).forEach( k => {
     if ( summaryObjects[k]['Matches_Played'] > 0 ) {
+      if ( summaryObjects[k]['Auton_Balance_Attempt'] > 0 ) {
+        summaryObjects[k]['Auton_Balance_Rate'] = (summaryObjects[k]['Auton_Balance_Success']/summaryObjects[k]['Auton_Balance_Attempt'])*100 + "%"
+      } 
       summaryObjects[k]['Avg_Auton_Score'] = summaryObjects[k]['Avg_Auton_Score']/summaryObjects[k]['Matches_Played']
       summaryObjects[k]['Avg_Auton_GPs'] = summaryObjects[k]['Avg_Auton_GPs']/summaryObjects[k]['Matches_Played']
       summaryObjects[k]['Avg_Teleop_Score (no links)'] = summaryObjects[k]['Avg_Teleop_Score (no links)']/summaryObjects[k]['Matches_Played']
       summaryObjects[k]['Avg_Teleop_GPs'] = summaryObjects[k]['Avg_Teleop_GPs']/summaryObjects[k]['Matches_Played']
       summaryObjects[k]['Avg_Endgame_Score'] = summaryObjects[k]['Avg_Endgame_Score']/summaryObjects[k]['Matches_Played']
+      summaryObjects[k]['Total_Avg_Score'] = summaryObjects[k]['Total_Avg_Score']/summaryObjects[k]['Matches_Played']
+      summaryObjects[k]['Total_Avg_GPs'] = summaryObjects[k]['Total_Avg_GPs']/summaryObjects[k]['Matches_Played']
     }
   })
 
@@ -310,7 +336,7 @@ function scoutingSummary(summaryObjects, scoutingObjects){
 }
 
 function specificScoutingSummaryHeader(){
-  return ["Auton Score", "Teleop Score", "Endgame Score", "Total Score"]
+  return ["Auton Score", "Teleop Score", "Endgame Score", "GPs Score", "Total Score"]
 }
 
 function specificScoutingSummary(specificTeamObjects, specificScoutingObjects){
@@ -327,11 +353,14 @@ function specificScoutingSummary(specificTeamObjects, specificScoutingObjects){
       specificScoutingItem['Auton Score'] = 0
       specificScoutingItem['Teleop Score'] = 0
       specificScoutingItem['Endgame Score'] = 0
+      specificScoutingItem['GPs Score'] = 0
       specificScoutingItem['Total Score'] = 0
 
       var autonScore = 0  
       var teleopScore = 0
       var endgameScore = 0
+      var autonGP = 0
+      var teleopGP = 0
       
       if ( specificScoutingItem['Mobility Bonus'] == true ){
         autonScore +=3
@@ -345,10 +374,12 @@ function specificScoutingSummary(specificTeamObjects, specificScoutingObjects){
       autonScore += specificScoutingItem['Auton High Pieces Scored']*6
       autonScore += specificScoutingItem['Auton Mid Pieces Scored']*4
       autonScore += specificScoutingItem['Auton Low Pieces Scored']*3
+      autonGP = specificScoutingItem['Auton High Pieces Scored'] + specificScoutingItem['Auton Mid Pieces Scored'] + specificScoutingItem['Auton Low Pieces Scored'] 
 
       teleopScore += specificScoutingItem['Teleop High Pieces Scored']*5
       teleopScore += specificScoutingItem['Teleop Mid Pieces Scored']*3
-      teleopScore += specificScoutingItem['Teleop Low Pieces Scored']*2
+      teleopScore += specificScoutingItem['Teleop Low Pieces Scored']*2     
+      teleopGP = specificScoutingItem['Teleop High Pieces Scored'] + specificScoutingItem['Teleop Mid Pieces Scored'] + specificScoutingItem['Teleop Low Pieces Scored']
 
       if (specificScoutingItem['Endgame Position'] == "PARK" ){
         endgameScore +=2
@@ -364,6 +395,7 @@ function specificScoutingSummary(specificTeamObjects, specificScoutingObjects){
       specificScoutingItem['Auton Score'] = autonScore
       specificScoutingItem['Teleop Score'] = teleopScore
       specificScoutingItem['Endgame Score'] = endgameScore
+      specificScoutingItem['GPs Score'] = autonGP + teleopGP
       specificScoutingItem['Total Score'] = autonScore + teleopScore + endgameScore
       specificTeamObjects.push(specificScoutingItem)
     }
@@ -396,7 +428,7 @@ function getNextMatch(teamKey){
   }
   var nextMatchKey = null
   for (var i = 0; i < data.length; i++) {
-    if ( data[i][Index.ACTUAL_TIME] === "" ){
+    if ( data[i][Index.ACTUAL_TIME] == "" ||  data[i][Index.ACTUAL_TIME] == "12/31/1969, 6:00:00 PM"){
       // This match has not occurred yet, check and see if the team is in the match.
       if ( data[i].join().match(teamKey) != null ){
         // Save the match key, and exit the loop
@@ -724,9 +756,17 @@ function loadMatches_(ignoreCache = false,matchType) {
     v.blue_score = v.alliances.blue.score;
     v.sortable_predicted_time = v.predicted_time;
     v.predicted_time = new Date(v.predicted_time*1000).toLocaleString('en-US', {timeZone: timeZone} );
-    v.actual_time = new Date(v.actual_time*1000).toLocaleString('en-US', {timeZone: timeZone} );
-    v.post_result_time = new Date(v.post_result_time*1000).toLocaleString('en-US', {timeZone: timeZone} );
-  
+    //TODO make this blank if zero
+    if ( v.actual_time ){
+      v.actual_time = new Date(v.actual_time*1000).toLocaleString('en-US', {timeZone: timeZone} );
+    }else{
+      v.actual_time=""
+    }
+    if ( v.post_result_time ){
+      v.post_result_time = new Date(v.post_result_time*1000).toLocaleString('en-US', {timeZone: timeZone} );
+    }else{
+      v.post_result_time = "";
+    }
     scoreBreakdown(v)
     return header.map(h => v[h]);
   });
@@ -805,10 +845,12 @@ function teamDetailsHeader(ignoreCache = false){
 
   header =  ['oprs','ccwms','dprs'] // This is from the /oprs endpoint and is defined in the api.
   var rankResults =  tbaQuery("event/" + eventKey + "/rankings",ignoreCache) // This will be cached, and used for loadTeamDetails.
-  header = header.concat(['rank','wins','losses','ties','matches_played']) // Part of the api spec
-  header = header.concat(rankResults.sort_order_info.map(r => r.name))// sort_order and extra_stats can change year to year
-  header = header.concat(rankResults.extra_stats_info.map(r => r.name)) // This assumes that there are no duplicates in sort_order and extra stats
-
+  Logger.log(rankResults)
+  header = header.concat(['rank','wins','losses','ties']) // Part of the api spec
+  if ( rankResults ) {
+    header = header.concat(rankResults.sort_order_info.map(r => r.name))// sort_order and extra_stats can change year to year
+    header = header.concat(rankResults.extra_stats_info.map(r => r.name)) // This assumes that there are no duplicates in sort_order and extra stats
+  }
   documentProperties.setProperty(Prop.TEAM_DETAILS_HEADER,JSON.stringify(header))
   return header
 }
@@ -857,6 +899,7 @@ function loadTeamDetails(ignoreCache) {
       data[i][header.indexOf('dprs')] = oprResults.dprs[teamKey]
     }
     if ( rankResults != null ){
+      Logger.log(rankResults)
       rankHeader.forEach(element => {data[i][header.indexOf(element)] = rankData[teamKey][rankHeader.indexOf(element)]} )
     }    
   }
@@ -864,4 +907,3 @@ function loadTeamDetails(ignoreCache) {
   sheet.getDataRange().setValues(data);
   
 }
-

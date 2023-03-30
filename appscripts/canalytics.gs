@@ -336,7 +336,7 @@ function scoutingSummary(summaryObjects, scoutingObjects){
 }
 
 function specificScoutingSummaryHeader(){
-  return ["Auton Score", "Teleop Score", "Endgame Score", "GPs Score", "Total Score"]
+  return ["Auton Score", "Teleop Score", "Endgame Score", "GPs Score", "Total Score", "Note"]
 }
 
 function specificScoutingSummary(specificTeamObjects, specificScoutingObjects){
@@ -349,7 +349,7 @@ function specificScoutingSummary(specificTeamObjects, specificScoutingObjects){
    })**/
   Object.keys(specificScoutingObjects).forEach( k => {
       specificScoutingItem = specificScoutingObjects[k]
-      //Logger.log(specificScoutingItem)
+      Logger.log(specificScoutingItem)
       specificScoutingItem['Auton Score'] = 0
       specificScoutingItem['Teleop Score'] = 0
       specificScoutingItem['Endgame Score'] = 0
@@ -397,6 +397,7 @@ function specificScoutingSummary(specificTeamObjects, specificScoutingObjects){
       specificScoutingItem['Endgame Score'] = endgameScore
       specificScoutingItem['GPs Score'] = autonGP + teleopGP
       specificScoutingItem['Total Score'] = autonScore + teleopScore + endgameScore
+      specificScoutingItem['Note'] = specificScoutingItem['Notes']
       specificTeamObjects.push(specificScoutingItem)
     }
   )
